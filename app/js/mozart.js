@@ -19,6 +19,12 @@ export class Mozart {
     this.set('asleep');
   }
 
+  /** Show custom text in the speech bubble ('' hides it). */
+  say(text) {
+    this.svg.classList.toggle('has-bubble', !!text);
+    if (this.text) this.text.textContent = text;
+  }
+
   set(state) {
     if (state === this.state || !this.svg) return;
     this.svg.classList.remove(this.state);

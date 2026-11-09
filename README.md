@@ -15,7 +15,15 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 - Mozart mascot: asleep, idle (foot tap), listening ("♪?"), scribbling (ink flying)
 - Candlelit dark mode, mobile-first layout, installable PWA shell, works offline after first load
 
-Not yet (M2+): real rhythm and tempo, chords/strums, editing, exports.
+## Status: Milestone 2 ✅
+- Records the whole take; press **Cease** and Mozart writes the **accurate version** with Spotify's Basic Pitch, on-device
+- **Tempo**: worked out automatically from free playing (fine-tune with − / + / ½× / 2×), or turn on **Click** for a metronome with a one-bar count-in
+- **Time signature**: Auto (4/4 or 3/4), or pick 4/4, 3/4 or 2/4
+- Real rhythm: 16th-note grid, dotted notes, ties across bars, beamed eighths, rests
+- **Chords**: stacked in the notation, named above the staff (C, Am7, G/B…), and laid out as real chord shapes in the tab
+- Falls back to the live notes if the model can't load (e.g. offline on first use)
+
+Not yet (M3+): tap-to-edit notes, tunings and capo, exports.
 
 ## Run it on the PC
 ```

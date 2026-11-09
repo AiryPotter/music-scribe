@@ -75,7 +75,7 @@
 
 ## Milestones
 1. **M1:** Mic in, then a live note readout, then single notes on a tab and staff. ✅ Done 2026-11-08: no-build JS app in `app/`, YIN pitch detection, VexFlow rendering, and the Mozart mascot. Tested with demo tones; not yet tested with a real guitar or on the Pixel.
-2. **M2:** Record, then a Basic Pitch accurate pass, snapped to tempo and a metronome
+2. **M2:** Record, then a Basic Pitch accurate pass, snapped to tempo and a metronome. ✅ Done 2026-11-09: raw take recording (AudioWorklet), on-device Basic Pitch, automatic tempo + 4/4-vs-3/4 detection, optional click track with count-in, 16th-grid quantizing with ties/dots/beams/rests, chord names, and chord-shape tab. Tested with a synthetic demo song; not yet with a real guitar.
 3. **M3:** Click-to-edit notes; tunings and capo
 4. **M4:** All exports (PDF, MusicXML, GP, MIDI, TXT, PNG/SVG, WAV, project file)
 5. **M5:** Polish: chord names, saved takes library, dark mode

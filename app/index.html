@@ -163,6 +163,10 @@
           <span class="seal-icon" aria-hidden="true">♪</span>
           <span id="recordLabel" class="seal-label">Begin</span>
         </button>
+        <label class="click-toggle" title="Play along to a metronome (with a one-bar count-in) for the tightest rhythm">
+          <input id="clickToggle" type="checkbox">
+          <span>Click</span>
+        </label>
       </div>
     </section>
 
@@ -173,14 +177,34 @@
         <span id="noteCount" class="note-count">0 notes</span>
         <button id="clearBtn" class="ghost" type="button">Clear</button>
       </div>
+      <div class="score-tools">
+        <span id="scoreStatus" class="score-status">Live preview</span>
+        <div class="tempo" role="group" aria-label="Tempo">
+          <span class="tempo-label" aria-hidden="true">♩ =</span>
+          <button id="bpmDown" class="mini" type="button" aria-label="Slower">−</button>
+          <input id="bpmInput" type="number" min="40" max="240" step="1" value="100" inputmode="numeric" aria-label="Beats per minute">
+          <button id="bpmUp" class="mini" type="button" aria-label="Faster">+</button>
+          <button id="bpmHalf" class="mini" type="button" title="Half the tempo">½×</button>
+          <button id="bpmDouble" class="mini" type="button" title="Double the tempo">2×</button>
+        </div>
+        <label class="meter-pick">
+          <span>Time</span>
+          <select id="meterSelect" aria-label="Time signature">
+            <option value="auto">Auto</option>
+            <option value="4">4/4</option>
+            <option value="3">3/4</option>
+            <option value="2">2/4</option>
+          </select>
+        </label>
+      </div>
       <div class="page">
         <div id="score" class="score"></div>
       </div>
-      <p class="hint small">Preview: notes are spaced evenly for now. Real rhythm, tempo and chords come in milestone 2.</p>
+      <p id="scoreHint" class="hint small">While you play, a quick preview appears. Press Cease and Mozart writes the accurate version: real rhythm, tempo and chords.</p>
     </section>
   </main>
 
-  <footer class="colophon">Your audio never leaves this device. · Music Scribe · M1</footer>
+  <footer class="colophon">Your audio never leaves this device. · Music Scribe · M2</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
   <script type="module" src="js/main.js"></script>

@@ -40,6 +40,50 @@ export class FretPicker {
     this.hand = 2; // start near open position
   }
 
+  /**
+   * Place several notes that sound together (a chord) on different strings,
+   * keeping the shape playable (small fret span) and near the hand.
+   * Returns [{ midi, pos }] with pos = null for a note that couldn't be placed.
+   */
+  pickChord(midis) {
+    const notes = [...new Set(midis)].sort((a, b) => a - b);
+    if (notes.length === 1) return [{ midi: notes[0], pos: this.pick(notes[0]) }];
+    const strings = this.tuning.strings;
+    const S = strings.length;
+    const use = notes.slice(0, S); // a guitar has six strings
+    const cands = use.map((m) => strings
+      .map((open, i) => ({ i, fret: m - open }))
+      .filter((c) => c.fret >= 0 && c.fret <= 15));
+    const used = new Array(S).fill(false);
+    const cur = [];
+    let best = null;
+    const rec = (k) => {
+      if (k === use.length) {
+        const fretted = cur.filter((c) => c && c.fret > 0).map((c) => c.fret);
+        const span = fretted.length ? Math.max(...fretted) - Math.min(...fretted) : 0;
+        if (span > 4) return;
+        const avg = fretted.length ? fretted.reduce((a, b) => a + b, 0) / fretted.length : 0;
+        const dropped = cur.filter((c) => !c).length;
+        const cost = dropped * 10 + span * 1.5 + Math.abs(avg - this.hand) * 0.35 + avg * 0.15;
+        if (!best || cost < best.cost) best = { cost, assign: cur.slice(), avg };
+        return;
+      }
+      for (const c of cands[k]) {
+        if (used[c.i]) continue;
+        used[c.i] = true; cur.push(c);
+        rec(k + 1);
+        cur.pop(); used[c.i] = false;
+      }
+      cur.push(null); rec(k + 1); cur.pop();
+    };
+    rec(0);
+    if (best && best.avg > 0) this.hand = Math.round(this.hand * 0.4 + best.avg * 0.6);
+    return notes.map((m, k) => {
+      const c = best && k < use.length ? best.assign[k] : null;
+      return { midi: m, pos: c ? { string: S - c.i, stringIndex: c.i, fret: c.fret } : null };
+    });
+  }
+
   /** Like pick(), but doesn't move the hand (for the live readout). */
   peek(midi) {
     const hand = this.hand;

@@ -206,7 +206,82 @@ h2 {
   .stage { --seal-size: 88px; gap: 8px; padding: 10px 12px; grid-template-columns: 96px minmax(0, 1fr) auto; }
 }
 .mozart-wrap { width: 100%; max-width: 170px; }
-.seal-slot { display: flex; justify-content: center; }
+.seal-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.click-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-soft);
+  cursor: pointer;
+  user-select: none;
+  min-height: 28px;
+}
+.click-toggle input { width: 18px; height: 18px; margin: 0; accent-color: var(--burgundy); }
+
+/* tempo bar in the manuscript */
+.score-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: -2px 0 8px;
+}
+.score-status {
+  flex: 1 1 160px;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--text-soft);
+  min-width: 0;
+}
+.score-status.busy::after {
+  content: "";
+  display: inline-block;
+  width: 10px; height: 10px;
+  margin-left: 6px;
+  border: 2px solid var(--gold);
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.tempo { display: inline-flex; align-items: center; gap: 4px; }
+.tempo-label { font-size: 17px; font-weight: 700; margin-right: 2px; }
+.tempo input {
+  width: 52px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  padding: 3px 2px;
+  border-radius: 6px;
+  border: 1px solid var(--card-edge);
+  background: color-mix(in srgb, var(--card) 70%, white 30%);
+  color: var(--text);
+  min-height: 32px;
+  -moz-appearance: textfield;
+}
+.tempo input::-webkit-outer-spin-button, .tempo input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mini {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--card-edge);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.meter-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 1px; }
+.meter-pick select { width: auto; min-height: 32px; padding: 2px 8px; font-size: 14px; text-transform: none; letter-spacing: 0; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tempo input { background: #20170f; }
+}
 .mozart { width: 100%; height: auto; display: block; overflow: visible; }
 
 .live { min-width: 0; }
@@ -505,8 +580,12 @@ input[type="range"] { width: 100%; accent-color: var(--burgundy); min-height: 28
 .mozart.squint .eyes ellipse { ry: 2; }
 .mozart.squint .head { transform: translateY(2px); }
 
-/* bow (export done, M4) */
+/* squint also scribbles slowly while he checks the work */
+.mozart.squint .arm-r { animation: scribble .6s linear infinite; }
+
+/* bow (transcription finished / export done) */
 .mozart.bow .head { transform: rotate(-14deg) translate(-4px, 8px); }
+.mozart.bow .arm-r { transform: rotate(-20deg); transition: transform .4s; }
 
 /* asleep: mic off */
 .mozart.asleep .eyes { animation: none; transform: scaleY(.12); }

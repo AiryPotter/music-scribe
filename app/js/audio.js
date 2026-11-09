@@ -53,6 +53,7 @@ export async function openMic(deviceId) {
     ctx,
     stream,
     analyser,
+    source,
     deviceId: settings.deviceId || deviceId || '',
     label: track?.label || 'Microphone',
     close() {
