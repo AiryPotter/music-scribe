@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Music Scribe</title>
+  <meta name="description" content="Play your guitar; Music Scribe writes it down as notation and tab.">
+  <meta name="theme-color" content="#7a1f2b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="title-block">
+      <h1><span class="flourish" aria-hidden="true">❦</span> Music Scribe</h1>
+      <p class="tagline">Thy playing, set down in ink</p>
+    </div>
+    <div class="zoom" role="group" aria-label="Zoom">
+      <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+      <button id="zoomReset" type="button" aria-label="Reset zoom">100%</button>
+      <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+      <button id="zoomFit" type="button" class="fit" aria-pressed="false" title="Shrink to fit the whole app on screen">Fit</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Microphone (compact bar) -->
+    <section class="card mic-bar" aria-label="Microphone">
+      <span class="mic-icon" aria-hidden="true">🎙</span>
+      <select id="micSelect" aria-label="Microphone input">
+        <option value="">Default microphone</option>
+      </select>
+      <div class="meter-wrap">
+        <div class="meter" aria-label="Input level">
+          <div id="meterFill" class="meter-fill"></div>
+          <div id="gateMark" class="gate-mark" title="Notes quieter than this are ignored"></div>
+        </div>
+        <span id="levelStatus" class="level-status">Off</span>
+      </div>
+      <label class="sens">
+        <span>Sensitivity</span>
+        <input id="sens" type="range" min="0" max="100" value="55" aria-label="Sensitivity">
+      </label>
+      <button id="tipBtn" class="tip-btn" type="button" aria-expanded="false" aria-controls="micHint" title="Mic tips">i</button>
+      <p id="micHint" class="hint mic-hint" hidden>Aim the mic where the neck meets the body, about a hand's width (15–30 cm) away.</p>
+    </section>
+
+    <!-- Stage: Mozart + live note -->
+    <section class="card stage">
+      <div class="mozart-wrap">
+        <svg id="mozart" class="mozart idle" viewBox="0 0 200 220" role="img" aria-label="Little cartoon Mozart with a parchment and quill">
+          <ellipse class="shadow" cx="100" cy="211" rx="54" ry="7"/>
+
+          <!-- legs & shoes -->
+          <g class="legs">
+            <rect x="80" y="170" width="14" height="32" rx="5" class="stocking"/>
+            <rect x="106" y="170" width="14" height="32" rx="5" class="stocking"/>
+            <path d="M72 206 q2 -9 22 -8 l1 9 z" class="shoe"/>
+            <rect x="80" y="199" width="8" height="4" rx="1" class="buckle"/>
+            <g class="foot-tap">
+              <path d="M105 198 q20 -1 22 8 l-23 1 z" class="shoe"/>
+              <rect x="111" y="199" width="8" height="4" rx="1" class="buckle"/>
+            </g>
+          </g>
+
+          <!-- coat -->
+          <path class="coat" d="M64 120 Q100 102 136 120 L150 180 Q100 192 50 180 Z"/>
+          <path class="coat-tail" d="M50 180 Q46 190 58 192 L74 186 Z"/>
+          <path class="coat-tail" d="M150 180 Q154 190 142 192 L126 186 Z"/>
+          <path class="trim" d="M100 116 L100 184"/>
+          <circle class="button" cx="106" cy="132" r="2.6"/>
+          <circle class="button" cx="106" cy="146" r="2.6"/>
+          <circle class="button" cx="106" cy="160" r="2.6"/>
+
+          <!-- jabot (lace collar) -->
+          <path class="jabot" d="M90 110 q10 24 20 0 q-3 16 -10 22 q-7 -6 -10 -22z"/>
+
+          <!-- left arm + scroll -->
+          <path class="sleeve" d="M66 124 Q50 146 60 164"/>
+          <g class="scroll">
+            <g transform="rotate(-6 84 168)">
+              <rect class="parchment" x="50" y="150" width="70" height="38" rx="2"/>
+              <rect class="roll" x="45" y="146" width="9" height="46" rx="4.5"/>
+              <rect class="roll" x="116" y="146" width="9" height="46" rx="4.5"/>
+              <g class="writing">
+                <path d="M58 160 h52" class="ink-line l1"/>
+                <path d="M58 168 h48" class="ink-line l2"/>
+                <path d="M58 176 h40" class="ink-line l3"/>
+                <circle cx="66" cy="160" r="2.2" class="ink-dot"/>
+                <circle cx="80" cy="168" r="2.2" class="ink-dot"/>
+                <circle cx="92" cy="160" r="2.2" class="ink-dot"/>
+              </g>
+            </g>
+          </g>
+          <circle class="hand" cx="58" cy="166" r="7"/>
+
+          <!-- right arm with quill (animated) -->
+          <g class="arm-r">
+            <path class="sleeve" d="M134 124 Q150 150 118 160"/>
+            <path class="quill-shaft" d="M104 172 L152 108"/>
+            <path class="quill" d="M152 108 C138 112 120 138 110 160 C126 146 146 128 152 108 Z"/>
+            <circle class="hand" cx="116" cy="160" r="7"/>
+            <g class="flecks">
+              <circle cx="100" cy="176" r="1.8"/>
+              <circle cx="96" cy="170" r="1.4"/>
+              <circle cx="108" cy="178" r="1.2"/>
+            </g>
+          </g>
+
+          <!-- head -->
+          <g class="head">
+            <path class="wig-back" d="M58 80 Q58 34 100 32 Q142 34 142 80 Q146 106 128 110 L72 110 Q54 106 58 80 Z"/>
+            <path class="ribbon" d="M140 100 l15 -7 l-3 15 z M140 100 l13 11 l-13 3 z"/>
+            <ellipse class="face" cx="100" cy="82" rx="28" ry="31"/>
+            <path class="wig-top" d="M70 64 Q72 36 100 36 Q128 36 130 64 Q118 52 100 54 Q82 52 70 64 Z"/>
+            <circle class="curl" cx="67" cy="80" r="9"/>
+            <circle class="curl" cx="68" cy="98" r="8"/>
+            <circle class="curl" cx="133" cy="80" r="9"/>
+            <circle class="curl" cx="132" cy="98" r="8"/>
+            <path class="brow" d="M84 72 q6 -4 12 0"/>
+            <path class="brow" d="M104 72 q6 -4 12 0"/>
+            <g class="eyes">
+              <ellipse cx="90" cy="81" rx="3.2" ry="4.2"/>
+              <ellipse cx="110" cy="81" rx="3.2" ry="4.2"/>
+            </g>
+            <g class="specs">
+              <circle cx="90" cy="81" r="7.5"/>
+              <circle cx="110" cy="81" r="7.5"/>
+              <path d="M97.5 81 h5"/>
+            </g>
+            <circle class="cheek" cx="81" cy="93" r="5"/>
+            <circle class="cheek" cx="119" cy="93" r="5"/>
+            <path class="nose" d="M100 84 q-3 6 1 7"/>
+            <path class="mouth" d="M93 100 Q100 106 107 100"/>
+          </g>
+
+          <!-- speech bubble -->
+          <g class="bubble">
+            <path d="M150 14 h40 a8 8 0 0 1 8 8 v18 a8 8 0 0 1 -8 8 h-26 l-10 9 l2 -9 h-6 a8 8 0 0 1 -8 -8 v-18 a8 8 0 0 1 8 -8 z"/>
+            <text id="bubbleText" x="170" y="37" text-anchor="middle">♪?</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="live" aria-live="polite">
+        <div class="eyebrow">Now hearing</div>
+        <div id="liveNote" class="live-note">—</div>
+        <div id="liveFret" class="live-fret">Press Begin, then play a note</div>
+        <div class="tuner" aria-hidden="true">
+          <div class="tuner-scale"><span></span><span></span><span class="mid"></span><span></span><span></span></div>
+          <div id="tunerNeedle" class="tuner-needle"></div>
+        </div>
+        <div id="liveCents" class="live-cents">&nbsp;</div>
+      </div>
+
+      <div class="seal-slot">
+        <button id="recordBtn" class="seal" type="button" aria-pressed="false">
+          <span class="seal-icon" aria-hidden="true">♪</span>
+          <span id="recordLabel" class="seal-label">Begin</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Score -->
+    <section class="card score-card">
+      <div class="score-head">
+        <h2>Thy Manuscript</h2>
+        <span id="noteCount" class="note-count">0 notes</span>
+        <button id="clearBtn" class="ghost" type="button">Clear</button>
+      </div>
+      <div class="page">
+        <div id="score" class="score"></div>
+      </div>
+      <p class="hint small">Preview: notes are spaced evenly for now. Real rhythm, tempo and chords come in milestone 2.</p>
+    </section>
+  </main>
+
+  <footer class="colophon">Your audio never leaves this device. · Music Scribe · M1</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

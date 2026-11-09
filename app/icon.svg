@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#7a1f2b"/>
+  <circle cx="256" cy="256" r="196" fill="#f3e3bf"/>
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#b8892b" stroke-width="14"/>
+  <!-- staff lines -->
+  <g stroke="#2b1d14" stroke-width="6" stroke-linecap="round" opacity=".55">
+    <line x1="140" y1="214" x2="372" y2="214"/>
+    <line x1="140" y1="244" x2="372" y2="244"/>
+    <line x1="140" y1="274" x2="372" y2="274"/>
+    <line x1="140" y1="304" x2="372" y2="304"/>
+  </g>
+  <!-- note -->
+  <ellipse cx="214" cy="304" rx="30" ry="22" transform="rotate(-20 214 304)" fill="#2b1d14"/>
+  <rect x="236" y="168" width="10" height="136" fill="#2b1d14"/>
+  <!-- quill -->
+  <path d="M396 120 C352 136 300 210 270 300 C312 252 370 182 396 120 Z" fill="#fffdf6" stroke="#2b1d14" stroke-width="6" stroke-linejoin="round"/>
+  <line x1="270" y1="300" x2="258" y2="330" stroke="#2b1d14" stroke-width="7" stroke-linecap="round"/>
+</svg>

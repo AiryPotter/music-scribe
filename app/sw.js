@@ -1,0 +1,44 @@
+// Music Scribe service worker: keeps the app working offline once loaded.
+const CACHE = 'music-scribe-m1-v1';
+const SHELL = [
+  './',
+  './index.html',
+  './css/style.css',
+  './js/main.js',
+  './js/audio.js',
+  './js/pitch.js',
+  './js/tracker.js',
+  './js/guitar.js',
+  './js/score.js',
+  './js/mozart.js',
+  './icon.svg',
+  './manifest.webmanifest',
+];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Network first (so updates show up), falling back to cache when offline.
+self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(
+    fetch(e.request)
+      .then((res) => {
+        if (res.ok && (res.type === 'basic' || res.type === 'cors')) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(e.request))
+  );
+});
