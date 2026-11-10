@@ -11,6 +11,8 @@ import { onsetEvents, estimateTempo, phaseFor, detectMeter, quantize, layoutBars
 import { nameChord } from './chords.js';
 import * as E from './edits.js';
 import { playPluck } from './pluck.js';
+import { createExportSheet } from './exportui.js';
+import { PROJECT_FORMAT } from './exporters.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -27,7 +29,7 @@ const ui = {
   bpm: $('bpmInput'), bpmUp: $('bpmUp'), bpmDown: $('bpmDown'), bpmHalf: $('bpmHalf'), bpmDouble: $('bpmDouble'),
   meterSel: $('meterSelect'),
   zoomIn: $('zoomIn'), zoomOut: $('zoomOut'), zoomReset: $('zoomReset'), zoomFit: $('zoomFit'),
-  undo: $('undoBtn'), redo: $('redoBtn'),
+  undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'),
   tuning: $('tuningSelect'), capo: $('capoSelect'), custom: $('customTuning'),
   ed: $('editor'), edWhat: $('edWhat'), edWhere: $('edWhere'), edPrev: $('edPrev'), edNext: $('edNext'), edClose: $('edClose'),
   edNote: $('edNoteTools'), edRest: $('edRestTools'), edChips: $('edChips'), edPitch: $('edPitch'),
@@ -276,6 +278,7 @@ async function start() {
   if (take?.score) pushHistory();
   take = null;
   closeEditor();
+  if (exportSheet.isOpen) exportSheet.close();
   notes = [];
   picker.reset();
   buf = new Float32Array(session.analyser.fftSize);
@@ -502,6 +505,7 @@ function layoutTake(t, { quiet = false } = {}) {
   bars.flat().forEach((p) => { if (!p.rest) (t.pieceStarts.get(p.evIdx) || t.pieceStarts.set(p.evIdx, []).get(p.evIdx)).push(p.at); });
 
   t.model = { measures, meter, header: scoreHeader() };
+  layoutVersion++;
   const noteCount = events.reduce((s, ev) => s + ev.notes.length, 0);
   ui.count.textContent = `${noteCount} note${noteCount === 1 ? '' : 's'}`;
   if (!quiet) {
@@ -593,6 +597,7 @@ function scheduleRender() {
     }
     const page = ui.score.parentElement;
     if (session) page.scrollTop = page.scrollHeight;
+    ui.exportBtn.disabled = !(take?.model && !session);
     if (sel && !ui.ed.hidden) requestAnimationFrame(() => keepSelVisible(page));
   }, 120);
 }
@@ -704,6 +709,7 @@ E.LENGTHS.forEach(([slots, name]) => {
 
 function select(ref) {
   if (!ref || !take?.score || session) return;
+  if (exportSheet.isOpen) exportSheet.close();
   if (ref.kind === 'ev') {
     const ev = take.score.events[ref.idx];
     const keep = sel?.kind === 'ev' && sel.idx === ref.idx;
@@ -893,6 +899,7 @@ document.addEventListener('keydown', (e) => {
     ArrowUp: e.shiftKey ? 'oct+' : 'semi+', ArrowDown: e.shiftKey ? 'oct-' : 'semi-',
     Delete: 'rest', Backspace: 'rest', Enter: 'fill',
   };
+  if (exportSheet.isOpen) return;
   if (e.key === 'ArrowLeft') nav(-1);
   else if (e.key === 'ArrowRight') nav(1);
   else if (e.key === 'Escape') closeEditor();
@@ -900,6 +907,97 @@ document.addEventListener('keydown', (e) => {
   else return;
   e.preventDefault();
 });
+
+// ---------- export, share, Dropbox, projects (M4) ----------
+let layoutVersion = 0;
+function buildSong() {
+  const t = take;
+  const strings = tuningStrings();
+  return {
+    title: t.title || '',
+    composer: store.get('composer', ''),
+    bpm: t.score.tempo.bpm,
+    meter: t.score.tempo.meter,
+    strings,
+    capo: guitar.capo,
+    tuningName: guitar.id === 'custom' ? 'Custom' : TUNINGS[guitar.id].name,
+    tuningLetters: tuningLetters(strings),
+    measures: t.model.measures,
+    events: t.score.events,
+    audio: t.rec ? { samples: t.rec.samples, sampleRate: t.rec.sampleRate } : null,
+    project: {
+      format: PROJECT_FORMAT,
+      version: 1,
+      app: 'Music Scribe',
+      savedAt: new Date().toISOString(),
+      title: t.title || '',
+      composer: store.get('composer', ''),
+      guitar: { tuning: guitar.id, strings, capo: guitar.capo },
+      take: { source: t.source, notes: t.notes || [], score: t.score },
+    },
+  };
+}
+
+/** Load a .musicscribe.json project as the current take (Undo brings back what was there). */
+function openProject(data) {
+  if (session) return;
+  if (take?.score) pushHistory();
+  closeEditor({ relayout: false });
+  const g = data.guitar || {};
+  if (g.tuning === 'custom' && Array.isArray(g.strings) && g.strings.length === 6) {
+    guitar.id = 'custom';
+    guitar.custom = g.strings.map(Number);
+    store.set('customTuning', JSON.stringify(guitar.custom));
+    ui.custom.innerHTML = '';
+  } else if (TUNINGS[g.tuning]) {
+    guitar.id = g.tuning;
+  }
+  guitar.capo = Math.max(0, Math.min(MAX_CAPO, Number(g.capo) || 0));
+  store.set('tuning', guitar.id);
+  store.set('capo', String(guitar.capo));
+  rebuildPicker();
+  syncGuitarUi();
+  const notesIn = Array.isArray(data.take.notes) ? data.take.notes : [];
+  take = {
+    rec: null, live: [], click: null,
+    source: data.take.source || 'project',
+    notes: notesIn,
+    events: onsetEvents(notesIn),
+    score: data.take.score,
+    tempo: { ...data.take.score.tempo },
+    title: data.title || '',
+    edited: false,
+  };
+  if (data.composer && !store.get('composer', '')) store.set('composer', data.composer);
+  ui.bpm.value = String(Math.round(take.tempo.bpm));
+  layoutTake(take);
+  setStatus(`Opened “${take.title || 'project'}” · ♩=${Math.round(take.tempo.bpm)} · ${take.tempo.meter}/4`);
+  updateUndoUi();
+}
+
+const exportSheet = createExportSheet({
+  store,
+  getSong: buildSong,
+  getModel: () => ({ ...take.model, header: '' }),
+  version: () => layoutVersion,
+  hasTake: () => !!take?.model && !session,
+  hasAudio: () => !!take?.rec?.samples?.length,
+  getTitle: () => take?.title || '',
+  setTitle: (v) => { if (take) take.title = v; },
+  pasteMode: IS_IOS && IS_STANDALONE, // home-screen iPhone apps can't use sign-in pop-ups
+  onOpenProject: openProject,
+  onDone: () => {
+    mozart.set('bow');
+    mozart.say('Sealed!');
+    setTimeout(() => { if (!session) mozart.set('asleep'); }, 2500);
+  },
+});
+ui.exportBtn.addEventListener('click', () => {
+  if (!take?.model || session) return;
+  closeEditor();
+  exportSheet.open();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && exportSheet.isOpen) exportSheet.close(); });
 
 // ---------- iPhone ----------
 // Safari may hold audio until the next touch (or pause it after a call); any tap wakes it.
@@ -934,4 +1032,5 @@ if ('serviceWorker' in navigator && window.isSecureContext && !DEMO) {
 window.musicScribe = {
   get notes() { return notes; }, get take() { return take; }, get tracker() { return tracker; }, start, stop,
   get sel() { return sel; }, select, undo, redo, history,
+  buildSong, openProject, get exportModel() { return take?.model ? { ...take.model, header: '' } : null; },
 };

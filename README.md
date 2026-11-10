@@ -37,7 +37,26 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 - **Tunings**: Standard, Drop D, half-step down, whole-step down, Drop C, or Custom (set each string)
 - **Capo** 0–12: tab is counted from the capo, notation shows the real sounding notes, and the page is labelled "Capo 2" etc.
 
-Next (M4): exports (PDF, MusicXML, Guitar Pro, MIDI, text tab, images, audio) and one-tap sharing to social and messaging apps.
+- **Tap a note to hear it**: tapping any note or chord plays it with a plucked-guitar sound (also as you step through with ◀ ▶)
+
+## Status: Milestone 4 ✅
+Tap **Export** (next to Clear) → **Seal & send**:
+- **Formats**: PDF · Image (PNG: square post, 9:16 story, or whole page) · MusicXML · Guitar Pro (.gp) · MIDI · Text tab · SVG · Audio (.wav, your original recording) · Project (.musicscribe.json, reopen and keep editing)
+- **Options**: show notes + tab, notes only, or tab only · paper A4 / Letter (picked from your phone's language) · clean white or parchment look
+- **Title** and **By** (your name, optional, saved only on your device) printed at the top
+- **Share…** opens the phone's share sheet: Instagram, TikTok, WhatsApp, Messages, Files, the Dropbox app…
+- **Download** saves the file
+- **Dropbox** saves straight into *Dropbox › Apps › Music Scribe* (Music Scribe can only see that one folder). Needs a one-time app key; see below.
+- **Open a saved project…** brings a .musicscribe.json back in to keep editing
+- PDF, images, text, MIDI and MusicXML are made on the device and work offline; Guitar Pro downloads its writer (alphaTab) the first time
+
+### One-time Dropbox setup
+1. Go to https://www.dropbox.com/developers/apps → **Create app** → **Scoped access** → **App folder** → name it (e.g. *Music Scribe AiryPotter*).
+2. **Permissions** tab: tick **files.content.write** → **Submit**.
+3. **Settings** tab → **OAuth 2 / Redirect URIs**: add `https://airypotter.github.io/music-scribe/dropbox.html` and `http://localhost:5173/dropbox.html`. Set **Allow public clients (Implicit Grant & PKCE)** to **Allow**.
+4. Copy the **App key** (not the secret) into `DROPBOX_APP_KEY` in `app/js/dropbox.js`.
+
+Next (M5): polish: saved takes library, themes, playback.
 
 ## Run it on the PC
 ```

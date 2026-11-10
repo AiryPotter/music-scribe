@@ -191,6 +191,7 @@
           <button id="undoBtn" class="mini icon" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>↶</button>
           <button id="redoBtn" class="mini icon" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>↷</button>
           <button id="clearBtn" class="ghost" type="button">Clear</button>
+          <button id="exportBtn" class="ghost seal-btn" type="button" disabled title="Export, share or save to Dropbox">Export</button>
         </div>
       </div>
       <div class="score-tools">
@@ -286,7 +287,42 @@
     </div>
   </section>
 
-  <footer class="colophon">Your audio never leaves this device. · <span id="editionName">Music Scribe</span> · M3</footer>
+  <!-- Export sheet: "Seal & send" -->
+  <section id="exportSheet" class="editor sheet" hidden aria-label="Export">
+    <div class="ed-head">
+      <div class="ed-title">
+        <strong>Seal &amp; send</strong>
+        <span>Export, share, or save to Dropbox</span>
+      </div>
+      <button id="exClose" class="mini" type="button" aria-label="Close export">✕</button>
+    </div>
+    <div class="ed-body">
+      <div class="ex-credits">
+        <label><span class="ed-label">Title</span><input id="exTitle" type="text" maxlength="80" placeholder="Untitled" autocomplete="off"></label>
+        <label><span class="ed-label">By</span><input id="exBy" type="text" maxlength="60" placeholder="your name (optional)" autocomplete="name"></label>
+      </div>
+      <div id="exFormats" class="ex-formats" role="radiogroup" aria-label="Format"></div>
+      <div id="exOptions" class="ex-options"></div>
+      <div class="ex-actions">
+        <button id="exShare" class="ed-btn primary" type="button">Share…</button>
+        <button id="exDownload" class="ed-btn" type="button">Download</button>
+        <button id="exDropbox" class="ed-btn dropbox" type="button"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 2 0 6l6 4 6-4-6-4Zm12 0-6 4 6 4 6-4-6-4ZM0 14l6 4 6-4-6-4-6 4Zm18-4-6 4 6 4 6-4-6-4ZM6 19.3 12 23l6-3.7-6-3.9-6 3.9Z"/></svg><span>Dropbox</span></button>
+      </div>
+      <div id="exPaste" class="ex-paste" hidden>
+        <a id="exLink" class="ed-btn" href="#" target="_blank" rel="noopener">Open Dropbox</a>
+        <input id="exCode" type="text" placeholder="paste the code here" autocomplete="off" spellcheck="false" aria-label="Code from Dropbox">
+        <button id="exCodeGo" class="ed-btn primary" type="button">Connect</button>
+      </div>
+      <p id="exStatus" class="ex-status" aria-live="polite"></p>
+      <div class="ex-foot">
+        <button id="exOpen" class="linkish" type="button">Open a saved project…</button>
+        <button id="exDbOff" class="linkish" type="button" hidden>Disconnect Dropbox</button>
+        <input id="exFile" type="file" accept=".json,application/json" hidden>
+      </div>
+    </div>
+  </section>
+
+  <footer class="colophon">Your audio never leaves this device. · <span id="editionName">Music Scribe</span> · M4</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
   <script type="module" src="js/main.js"></script>

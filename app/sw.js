@@ -1,5 +1,5 @@
 // Music Scribe service worker: keeps the app working offline once loaded.
-const CACHE = 'music-scribe-m3-v3';
+const CACHE = 'music-scribe-m4-v1';
 const SHELL = [
   './ios/',
   './manifest-ios.webmanifest',
@@ -8,6 +8,12 @@ const SHELL = [
   './icons/icon-512.png',
   './js/edits.js',
   './js/pluck.js',
+  './js/exporters.js',
+  './js/pages.js',
+  './js/gp.js',
+  './js/dropbox.js',
+  './js/exportui.js',
+  './dropbox.html',
   './js/recorder.js',
   './js/capture-worklet.js',
   './js/metronome.js',
