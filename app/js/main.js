@@ -10,6 +10,7 @@ import { transcribe, preloadTranscriber } from './transcribe.js';
 import { onsetEvents, estimateTempo, phaseFor, detectMeter, quantize, layoutBars, SLOTS_PER_BEAT } from './rhythm.js';
 import { nameChord } from './chords.js';
 import * as E from './edits.js';
+import { playPluck } from './pluck.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -671,28 +672,14 @@ function updateUndoUi() {
 ui.undo.addEventListener('click', undo);
 ui.redo.addEventListener('click', redo);
 
-// ---------- hear a note while editing ----------
+// ---------- hear notes (tap a note, or while editing) ----------
 let earCtx = null;
 function audition(midis) {
-  if (session || !midis?.length) return;
+  if (session || !midis?.length || midis.some((m) => m === undefined)) return;
   setAudioSession('playback'); // iPhone: play even when the silent switch is on
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   wake(earCtx);
-  const t0 = earCtx.currentTime + 0.03;
-  midis.forEach((m, k) => {
-    const t = t0 + k * 0.025; // a gentle strum
-    const osc = earCtx.createOscillator(), lp = earCtx.createBiquadFilter(), g = earCtx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
-    lp.frequency.value = 2800;
-    const level = 0.22 / Math.sqrt(midis.length);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(level, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
-    osc.connect(lp).connect(g).connect(earCtx.destination);
-    osc.start(t);
-    osc.stop(t + 1.15);
-  });
+  playPluck(earCtx, midis);
 }
 
 // ---------- the note editor (tap a note or rest) ----------
@@ -727,6 +714,7 @@ function select(ref) {
   ui.ed.hidden = false;
   document.body.classList.add('editing');
   layoutTake(take, { quiet: true });
+  if (sel.kind === 'ev') audition(take.score.events[sel.idx].notes.map((n) => n.midi)); // hear what you tapped
 }
 function closeEditor({ relayout = true } = {}) {
   const had = !!sel;
