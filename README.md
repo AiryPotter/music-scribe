@@ -23,7 +23,21 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 - **Chords**: stacked in the notation, named above the staff (C, Am7, G/B…), and laid out as real chord shapes in the tab
 - Falls back to the live notes if the model can't load (e.g. offline on first use)
 
-Not yet (M3+): tap-to-edit notes, tunings and capo, exports.
+## Status: Milestone 3 ✅
+- **Tap any note** (or rest) and an editor tray slides up:
+  - Pitch ▲▼ by semitone, ±8ve by octave (you hear the note as you change it)
+  - String: move a note to another string (tab updates)
+  - Length: 16th → whole, including dotted
+  - Chords: pick a note in the chord, **+ Note** (doubles it an octave up: handy for a missed top note), **− Note**, rename the chord or hide its name
+  - **Make rest**, or tap a rest and **+ Add a note here**
+  - **⌒ Tie** a note into the next identical one, or **Untie** a tied note into separate strikes
+  - ◀ ▶ to step through notes; 🔊 to hear a chord
+- **Undo / Redo** (↶ ↷), which also brings back a cleared or re-recorded take
+- PC keys: ↑↓ pitch (Shift = octave), ←→ previous/next, Delete = rest, Enter = add note to a rest, Ctrl+Z / Ctrl+Y, Esc closes
+- **Tunings**: Standard, Drop D, half-step down, whole-step down, Drop C, or Custom (set each string)
+- **Capo** 0–12: tab is counted from the capo, notation shows the real sounding notes, and the page is labelled "Capo 2" etc.
+
+Next (M4): exports (PDF, MusicXML, Guitar Pro, MIDI, text tab, images, audio) and one-tap sharing to social and messaging apps.
 
 ## Run it on the PC
 ```

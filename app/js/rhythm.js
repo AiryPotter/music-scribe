@@ -127,17 +127,15 @@ function pickLen(pos, room, barSlots) {
 }
 
 /**
- * Snap notes to the grid and build bars.
+ * Snap notes to the grid. Returns the editable score events:
+ * [{ slot, len, keys: [midi] }] (slots are 16ths from the start of bar 1; events never overlap).
  * tempo = { bpm, beat0, meter, offset } (offset = which beat is the downbeat).
- * Returns { measures: [[piece]], barStart } where a piece is
- * { slots, rest, ev, tieFromPrev, tieToNext }; ev = { slot, notes:[...] }.
  */
-export function buildMeasures(notes, tempo) {
+export function quantize(notes, tempo) {
   const { bpm, beat0, meter } = tempo;
   const p = 60 / bpm;
   const slotDur = p / SLOTS_PER_BEAT;
-  const barSlots = meter * SLOTS_PER_BEAT;
-  if (!notes.length) return { measures: [[{ slots: barSlots, rest: true }]], barStart: beat0, barSlots };
+  if (!notes.length) return { events: [], barStart: beat0 };
 
   const first = Math.min(...notes.map((n) => n.start));
   let barStart = beat0 + (tempo.offset || 0) * p;
@@ -158,18 +156,34 @@ export function buildMeasures(notes, tempo) {
   }
   const evs = [...groups.values()].sort((a, b) => a.slot - b.slot);
 
-  // timeline of notes and rests (guitar notes ring: extend to the next onset unless there's a clear gap)
-  const items = [];
-  let cursor = 0;
-  evs.forEach((ev, i) => {
-    if (ev.slot > cursor) items.push({ slot: cursor, len: ev.slot - cursor, rest: true });
+  // guitar notes ring: extend to the next onset unless there's a clear gap
+  const events = evs.map((ev, i) => {
     const next = i + 1 < evs.length ? evs[i + 1].slot : Infinity;
     let end = ev.end;
     if (next !== Infinity && next - end < SLOTS_PER_BEAT) end = next;
     end = Math.min(end, next);
     end = Math.max(end, ev.slot + 1);
-    items.push({ slot: ev.slot, len: end - ev.slot, ev });
-    cursor = end;
+    const keys = [...new Set(ev.notes.map((n) => n.midi))].sort((a, b) => a - b);
+    return { slot: ev.slot, len: end - ev.slot, keys };
+  });
+  return { events, barStart };
+}
+
+/**
+ * Lay score events out into bars of notatable pieces (splitting long notes with ties,
+ * filling gaps with rests). events = [{ slot, len, ... }] sorted, non-overlapping.
+ * Returns measures: [[piece]] with piece = { slots, at, rest, evIdx, tieFromPrev, tieToNext,
+ * restAt, restLen } (restAt/restLen = the whole gap a rest piece belongs to).
+ */
+export function layoutBars(events, barSlots) {
+  const items = [];
+  let cursor = 0;
+  events.forEach((ev, idx) => {
+    if (ev.slot > cursor) items.push({ slot: cursor, len: ev.slot - cursor, rest: true });
+    const start = Math.max(ev.slot, cursor);
+    const end = ev.slot + ev.len;
+    if (end > start) items.push({ slot: start, len: end - start, evIdx: idx });
+    cursor = Math.max(cursor, end);
   });
   const bars = Math.max(1, Math.ceil(cursor / barSlots));
   if (cursor < bars * barSlots) items.push({ slot: cursor, len: bars * barSlots - cursor, rest: true });
@@ -177,18 +191,33 @@ export function buildMeasures(notes, tempo) {
   const measures = Array.from({ length: bars }, () => []);
   const flat = [];
   for (const it of items) {
+    // rests are split per bar so each bar's rest can be tapped on its own
     let pos = it.slot, remaining = it.len, firstPiece = true;
     while (remaining > 0) {
       const bar = Math.floor(pos / barSlots);
       const inBar = pos - bar * barSlots;
       const room = Math.min(remaining, barSlots - inBar);
       const len = pickLen(inBar, room, barSlots);
-      const piece = { slots: len, rest: !!it.rest, ev: it.ev || null, tieFromPrev: !it.rest && !firstPiece, tieToNext: false };
+      const piece = {
+        slots: len, at: pos, rest: !!it.rest, evIdx: it.rest ? null : it.evIdx,
+        tieFromPrev: !it.rest && !firstPiece, tieToNext: false,
+      };
       measures[bar].push(piece);
       flat.push(piece);
       pos += len; remaining -= len; firstPiece = false;
     }
   }
+  // tapping a rest offers the silence from there to the end of that gap in the bar
+  for (const bar of measures) {
+    let acc = 0;
+    for (let i = bar.length - 1; i >= 0; i--) {
+      const p = bar[i];
+      if (!p.rest) { acc = 0; continue; }
+      acc += p.slots;
+      p.restAt = p.at;
+      p.restLen = acc;
+    }
+  }
   for (let i = 1; i < flat.length; i++) if (flat[i].tieFromPrev) flat[i - 1].tieToNext = true;
-  return { measures, barStart, barSlots };
+  return measures;
 }

@@ -1,6 +1,7 @@
 // Music Scribe service worker: keeps the app working offline once loaded.
-const CACHE = 'music-scribe-m2-v1';
+const CACHE = 'music-scribe-m3-v1';
 const SHELL = [
+  './js/edits.js',
   './js/recorder.js',
   './js/capture-worklet.js',
   './js/metronome.js',

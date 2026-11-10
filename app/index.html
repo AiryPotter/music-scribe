@@ -175,7 +175,11 @@
       <div class="score-head">
         <h2>Thy Manuscript</h2>
         <span id="noteCount" class="note-count">0 notes</span>
-        <button id="clearBtn" class="ghost" type="button">Clear</button>
+        <div class="head-actions">
+          <button id="undoBtn" class="mini icon" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>↶</button>
+          <button id="redoBtn" class="mini icon" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>↷</button>
+          <button id="clearBtn" class="ghost" type="button">Clear</button>
+        </div>
       </div>
       <div class="score-tools">
         <span id="scoreStatus" class="score-status">Live preview</span>
@@ -197,14 +201,80 @@
           </select>
         </label>
       </div>
+      <div class="score-tools guitar-tools">
+        <label class="meter-pick">
+          <span>Tuning</span>
+          <select id="tuningSelect" aria-label="Guitar tuning"></select>
+        </label>
+        <label class="meter-pick">
+          <span>Capo</span>
+          <select id="capoSelect" aria-label="Capo fret"></select>
+        </label>
+        <div id="customTuning" class="custom-tuning" role="group" aria-label="Custom tuning, lowest string first" hidden></div>
+      </div>
       <div class="page">
         <div id="score" class="score"></div>
       </div>
-      <p id="scoreHint" class="hint small">While you play, a quick preview appears. Press Cease and Mozart writes the accurate version: real rhythm, tempo and chords.</p>
+      <p id="scoreHint" class="hint small">While you play, a quick preview appears. Press Cease and Mozart writes the accurate version: real rhythm, tempo and chords. Then tap any note to fix it.</p>
     </section>
   </main>
 
-  <footer class="colophon">Your audio never leaves this device. · Music Scribe · M2</footer>
+  <!-- Editor tray: slides up when a note or rest is tapped -->
+  <section id="editor" class="editor" hidden aria-label="Edit note">
+    <div class="ed-head">
+      <button id="edPrev" class="mini" type="button" aria-label="Previous note">◀</button>
+      <div class="ed-title">
+        <strong id="edWhat">—</strong>
+        <span id="edWhere"></span>
+      </div>
+      <button id="edNext" class="mini" type="button" aria-label="Next note">▶</button>
+      <button id="edClose" class="mini" type="button" aria-label="Close editor">✕</button>
+    </div>
+
+    <div id="edNoteTools" class="ed-body">
+      <div id="edChips" class="ed-chips" role="group" aria-label="Notes in this chord"></div>
+      <div class="ed-row">
+        <span class="ed-label">Pitch</span>
+        <button class="ed-btn" type="button" data-act="oct-" aria-label="Down an octave">−8ve</button>
+        <button class="ed-btn big" type="button" data-act="semi-" aria-label="Down a semitone">▼</button>
+        <output id="edPitch" class="ed-value">—</output>
+        <button class="ed-btn big" type="button" data-act="semi+" aria-label="Up a semitone">▲</button>
+        <button class="ed-btn" type="button" data-act="oct+" aria-label="Up an octave">+8ve</button>
+      </div>
+      <div class="ed-row">
+        <span class="ed-label">String</span>
+        <button class="ed-btn" type="button" data-act="str-" aria-label="Lower string">◀</button>
+        <output id="edString" class="ed-value wide">—</output>
+        <button class="ed-btn" type="button" data-act="str+" aria-label="Higher string">▶</button>
+      </div>
+      <div class="ed-row">
+        <span class="ed-label">Length</span>
+        <div id="edLens" class="ed-lens" role="group" aria-label="Note length"></div>
+      </div>
+      <div class="ed-row">
+        <span class="ed-label">Chord</span>
+        <input id="edChord" class="ed-chord" type="text" maxlength="14" placeholder="auto" aria-label="Chord name" autocomplete="off" spellcheck="false">
+        <button class="ed-btn" type="button" data-act="chord-auto">Auto</button>
+        <button class="ed-btn" type="button" data-act="chord-hide">Hide</button>
+      </div>
+      <div class="ed-row ed-actions">
+        <button class="ed-btn" type="button" data-act="add" title="Add a note: the selected note doubled an octave up">+ Note</button>
+        <button class="ed-btn" type="button" data-act="remove">− Note</button>
+        <button class="ed-btn" type="button" data-act="join" title="Tie to the next note (same notes, straight after)">⌒ Tie</button>
+        <button class="ed-btn" type="button" data-act="split" title="Untie into separately played notes">Untie</button>
+        <button class="ed-btn" type="button" data-act="rest">Make rest</button>
+        <button class="ed-btn" type="button" data-act="listen" aria-label="Hear it">🔊</button>
+      </div>
+    </div>
+
+    <div id="edRestTools" class="ed-body" hidden>
+      <div class="ed-row">
+        <button class="ed-btn primary" type="button" data-act="fill">+ Add a note here</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="colophon">Your audio never leaves this device. · Music Scribe · M3</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
   <script type="module" src="js/main.js"></script>

@@ -1,15 +1,17 @@
 // Draws bars of notation (treble 8vb) with tablature underneath, using VexFlow.
 //
-// Input model: { measures: [[piece]], meter }
-// piece = { slots, rest, keys: [midi], positions: [{ str, fret } | null], chord, tieToNext, tieFromPrev, live }
+// Input model: { measures: [[piece]], meter, header? }
+// piece = { slots, rest, keys: [midi], positions: [{ str, fret } | null], chord, tieToNext, tieFromPrev, live,
+//           ref (tap target id), sel (selected), focus (index of the focused key when selected) }
 // slots are 16th notes (4 = quarter note).
+// When pieces carry `ref`, invisible tap areas (<rect data-ref>) are added over each column.
 
 import { vexKey } from './guitar.js';
 import { DUR } from './rhythm.js';
 
 const ROW_HEIGHT = 240;
 const TAB_OFFSET = 110;
-const TOP_PAD = 14;
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -45,12 +47,16 @@ export function renderScore(el, model) {
   }
   const { Renderer, Stave, TabStave, StaveNote, TabNote, GhostNote, Voice, Formatter, Accidental,
     StaveConnector, Dot, Beam, StaveTie, Annotation, Fraction } = VF;
-  const { measures, meter = 4 } = model;
+  const { measures, meter = 4, header = '' } = model;
+  const TOP_PAD = header ? 30 : 14;
 
   const ink = cssVar('--ink', '#2b1d14');
   const paper = cssVar('--page', '#f3e3bf');
   const live = cssVar('--seal', '#9e1b1b');
   const chordInk = cssVar('--burgundy', '#7a1f2b');
+  const selInk = cssVar('--sel-ink', '#a5541a');
+  const hits = [];   // { x0, x1, y0, y1, ref }
+  const bands = [];  // selected columns to highlight
 
   el.innerHTML = '';
   const pxWidth = Math.max(280, Math.floor(el.clientWidth));
@@ -76,6 +82,13 @@ export function renderScore(el, model) {
   ctx.setFillStyle(ink);
   ctx.setStrokeStyle(ink);
   if (ctx.setBackgroundFillStyle) ctx.setBackgroundFillStyle(paper);
+
+  if (header) {
+    ctx.save();
+    ctx.setFont('Times New Roman', 13, 'normal', 'italic');
+    ctx.fillText(header, 10, 16);
+    ctx.restore();
+  }
 
   const order = []; // every drawn StaveNote in time order, with its row, for ties
 
@@ -134,9 +147,17 @@ export function renderScore(el, model) {
             sn.setStyle({ fillStyle: live, strokeStyle: live });
             tn.setStyle?.({ fillStyle: live, strokeStyle: live });
           }
+          if (p.sel) {
+            sn.setStyle({ fillStyle: selInk, strokeStyle: selInk });
+            tn.setStyle?.({ fillStyle: selInk, strokeStyle: selInk });
+            if (p.focus !== undefined && p.keys.length > 1) {
+              try { sn.setKeyStyle(p.focus, { fillStyle: live, strokeStyle: live }); } catch { /* older API */ }
+            }
+          }
           beamable.push(sn);
           order.push({ sn, row: rowIdx, piece: p });
         }
+        if (p.rest && p.sel) sn.setStyle({ fillStyle: selInk, strokeStyle: selInk });
         if (dots) Dot.buildAndAttach([sn], { all: true });
         staffNotes.push(sn);
         tabNotes.push(tn);
@@ -153,6 +174,20 @@ export function renderScore(el, model) {
       nv.draw(ctx, stave);
       tv.draw(ctx, tab);
       beams.forEach((b) => b.setContext(ctx).draw());
+
+      // tap areas: each column runs halfway to its neighbours, covering staff + tab
+      const centers = staffNotes.map((sn) => {
+        try { return sn.getAbsoluteX() + 7; } catch { return null; }
+      });
+      const leftEdge = stave.getNoteStartX() - 4, rightEdge = x + w;
+      cell.m.forEach((p, j) => {
+        if (p.ref === undefined || centers[j] === null) return;
+        const x0 = j === 0 ? leftEdge : (centers[j - 1] + centers[j]) / 2;
+        const x1 = j === cell.m.length - 1 ? rightEdge : (centers[j] + centers[j + 1]) / 2;
+        const hit = { x0, x1, y0: y - 6, y1: y + TAB_OFFSET + 96, ref: p.ref };
+        hits.push(hit);
+        if (p.sel) bands.push(hit);
+      });
       x += w;
     });
   });
@@ -170,5 +205,25 @@ export function renderScore(el, model) {
         new StaveTie({ first_note: null, last_note: b.sn, first_indices: idx, last_indices: idx }).setContext(ctx).draw();
       }
     } catch { /* skip a tie VexFlow can't draw */ }
+  }
+
+  // highlight behind the selection, tap areas on top of everything
+  const svg = el.querySelector('svg');
+  if (!svg) return;
+  for (const b of bands) {
+    const r = document.createElementNS(SVG_NS, 'rect');
+    r.setAttribute('x', b.x0 + 1); r.setAttribute('y', b.y0);
+    r.setAttribute('width', Math.max(4, b.x1 - b.x0 - 2)); r.setAttribute('height', b.y1 - b.y0);
+    r.setAttribute('rx', 6);
+    r.setAttribute('class', 'sel-band');
+    svg.insertBefore(r, svg.firstChild);
+  }
+  for (const h of hits) {
+    const r = document.createElementNS(SVG_NS, 'rect');
+    r.setAttribute('x', h.x0); r.setAttribute('y', h.y0);
+    r.setAttribute('width', Math.max(4, h.x1 - h.x0)); r.setAttribute('height', h.y1 - h.y0);
+    r.setAttribute('class', 'hit');
+    r.dataset.ref = String(h.ref);
+    svg.appendChild(r);
   }
 }
