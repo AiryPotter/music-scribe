@@ -53,3 +53,18 @@ Then open http://localhost:5173. Add `?demo` to the URL (http://localhost:5173/?
 3. Open Music Scribe from the home screen, tap **Begin**, and allow the microphone.
 
 Every push to `main` redeploys automatically (GitHub Actions → Pages).
+
+## Use it on the iPhone: Music Scribe iOS
+**Live at: https://airypotter.github.io/music-scribe/ios/**
+
+1. Open the link in **Safari** on the iPhone.
+2. Tap **Share** (on newer iPhones it's inside Safari's **⋯** menu) → **Add to Home Screen**. Keep **Open as Web App** on, then tap **Add**.
+3. Open **Music Scribe iOS** from the home screen, tap **Begin**, and allow the microphone.
+
+It's the same app and code as the Android/PC version (no separate codebase to keep in step), with its own name, icon entry and iPhone tweaks:
+- Notes you hear while editing still play with the **silent switch on**
+- No page zoom-in when you tap a text box or picker
+- Safe-area padding for the notch / Dynamic Island and home bar
+- If iOS holds the audio back, the first tap anywhere starts it
+
+`app/ios/index.html` is **generated** from `app/index.html` by `tools/make_ios.py` (GitHub Actions runs it on deploy; `serve.py` runs it locally), so only ever edit `app/index.html`.

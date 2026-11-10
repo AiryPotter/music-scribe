@@ -62,6 +62,7 @@ html, body { margin: 0; }
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: var(--font-body);
   font-size: 18px;
   font-weight: 500;
@@ -73,7 +74,9 @@ body {
     radial-gradient(ellipse at 100% 100%, rgba(120, 80, 30, .18), transparent 60%),
     radial-gradient(ellipse at 0% 100%, rgba(120, 80, 30, .12), transparent 50%);
   background-attachment: fixed;
-  padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom));
+  padding: env(safe-area-inset-top) calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -473,6 +476,9 @@ input[type="range"] { width: 100%; accent-color: var(--burgundy); min-height: 28
   box-shadow: inset 0 0 30px rgba(140, 100, 40, .25);
   padding: 10px 4px;
   height: clamp(380px, 68vh, 1400px);
+  height: clamp(380px, 68dvh, 1400px);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -511,6 +517,7 @@ body.editing { padding-bottom: calc(var(--tray-h, 300px) + 16px); }
   transform: translateX(-50%);
   width: min(100%, 680px);
   max-height: 62vh;
+  max-height: 62dvh;
   overflow-y: auto;
   z-index: 20;
   background: var(--card);
@@ -699,4 +706,50 @@ body.editing { padding-bottom: calc(var(--tray-h, 300px) + 16px); }
 
 @media (prefers-reduced-motion: reduce) {
   .mozart *, .seal { animation: none !important; transition: none !important; }
+}
+
+/* ---------- iPhone / touch ---------- */
+button, select, input, label, .score { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.score, .seal, .zoom, .ed-head, .ed-lens, .ed-chips { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Safari on iPhone zooms the page into any text box or picker under 16px; stop that */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
+/* "iOS" edition badge after the title (only on the iOS edition page) */
+.edition {
+  display: none;
+  font-family: var(--font-body);
+  font-size: .38em;
+  font-weight: 700;
+  letter-spacing: 1px;
+  vertical-align: super;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+}
+html[data-edition="ios"] .edition { display: inline-block; }
+
+/* install hint for iPhone */
+.install-banner {
+  max-width: 980px;
+  margin: 0 auto 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--gold);
+  background: color-mix(in srgb, var(--card) 85%, var(--gold) 15%);
+  font-size: 16px;
+  line-height: 1.35;
+}
+.install-banner[hidden] { display: none; }
+.install-banner p { margin: 0; flex: 1; }
+.install-banner a { color: var(--burgundy); font-weight: 700; }
+.share-glyph { display: inline-block; font-weight: 700; color: #2f6fd6; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .install-banner a { color: #e7b45a; }
 }

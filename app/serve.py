@@ -10,9 +10,20 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(ROOT), "tools"))
+import make_ios  # noqa: E402  (builds the "Music Scribe iOS" page from index.html)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.split("?")[0].rstrip("/") in ("/ios", "/ios/index.html"):
+            try:
+                make_ios.build()  # always in step with index.html
+            except SystemExit as err:
+                self.send_error(500, str(err))
+                return
+        super().do_GET()
+
     extensions_map = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
         ".html": "text/html",

@@ -81,7 +81,8 @@ async function runModel(audio, onProgress) {
       return await evaluate(input, onProgress);
     } catch (err) {
       lastErr = err;
-      if (!/shader|webgl|texture/i.test(String(err?.message))) throw err;
+      // only shader bugs depend on the length; anything else (e.g. a phone GPU problem) → straight to CPU
+      if (!/shader|texture/i.test(String(err?.message))) break;
     }
   }
   try {

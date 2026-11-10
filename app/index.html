@@ -6,9 +6,15 @@
   <title>Music Scribe</title>
   <meta name="description" content="Play your guitar; Music Scribe writes it down as notation and tab.">
   <meta name="theme-color" content="#7a1f2b">
+  <!-- home-screen app settings (iPhone reads the apple-* ones) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Music Scribe">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
@@ -17,7 +23,7 @@
 <body>
   <header class="masthead">
     <div class="title-block">
-      <h1><span class="flourish" aria-hidden="true">❦</span> Music Scribe</h1>
+      <h1><span class="flourish" aria-hidden="true">❦</span> Music Scribe<span class="edition">iOS</span></h1>
       <p class="tagline">Thy playing, set down in ink</p>
     </div>
     <div class="zoom" role="group" aria-label="Zoom">
@@ -27,6 +33,12 @@
       <button id="zoomFit" type="button" class="fit" aria-pressed="false" title="Shrink to fit the whole app on screen">Fit</button>
     </div>
   </header>
+
+  <!-- iPhone: how to install (Safari has no install button of its own) -->
+  <aside id="installBanner" class="install-banner" hidden>
+    <p id="installText"></p>
+    <button id="installClose" class="mini" type="button" aria-label="Dismiss">✕</button>
+  </aside>
 
   <main>
     <!-- Microphone (compact bar) -->
@@ -274,7 +286,7 @@
     </div>
   </section>
 
-  <footer class="colophon">Your audio never leaves this device. · Music Scribe · M3</footer>
+  <footer class="colophon">Your audio never leaves this device. · <span id="editionName">Music Scribe</span> · M3</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
   <script type="module" src="js/main.js"></script>

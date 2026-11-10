@@ -1,4 +1,4 @@
-import { listMics, openMic, looksBluetooth } from './audio.js';
+import { listMics, openMic, looksBluetooth, IS_IOS, IS_STANDALONE, setAudioSession, wake } from './audio.js';
 import { detectPitch, rms } from './pitch.js';
 import { NoteTracker } from './tracker.js';
 import { FretPicker, noteName, stringName, TUNINGS, MAX_CAPO, tuningLetters, noteNameFlat } from './guitar.js';
@@ -269,6 +269,7 @@ async function start() {
   ui.record.disabled = false;
   await refreshMics();
   showMicHint(session.label);
+  if (session.ctx.state !== 'running') ui.liveFret.textContent = 'Tap anywhere to start listening';
 
   // fresh take (the old one stays reachable with Undo)
   if (take?.score) pushHistory();
@@ -674,8 +675,9 @@ ui.redo.addEventListener('click', redo);
 let earCtx = null;
 function audition(midis) {
   if (session || !midis?.length) return;
+  setAudioSession('playback'); // iPhone: play even when the silent switch is on
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
-  earCtx.resume?.();
+  wake(earCtx);
   const t0 = earCtx.currentTime + 0.03;
   midis.forEach((m, k) => {
     const t = t0 + k * 0.025; // a gentle strum
@@ -910,6 +912,29 @@ document.addEventListener('keydown', (e) => {
   else return;
   e.preventDefault();
 });
+
+// ---------- iPhone ----------
+// Safari may hold audio until the next touch (or pause it after a call); any tap wakes it.
+document.addEventListener('pointerdown', () => { wake(session?.ctx); wake(earCtx); }, { passive: true, capture: true });
+
+const IOS_EDITION = document.documentElement.dataset.edition === 'ios';
+function showInstallBanner() {
+  const banner = $('installBanner');
+  const key = IOS_EDITION ? 'hideInstall.ios' : 'hideInstall.main';
+  if (!IS_IOS || IS_STANDALONE || store.get(key, '0') === '1') return;
+  const text = $('installText');
+  if (IOS_EDITION) {
+    text.innerHTML = '<strong>Install Music Scribe iOS:</strong> tap <b>Share</b> '
+      + '<span class="share-glyph" aria-hidden="true">⬆︎</span> (on newer iPhones it’s in Safari’s <b>⋯</b> menu), '
+      + 'then <b>Add to Home Screen</b>, and keep <b>Open as Web App</b> on.';
+  } else {
+    text.innerHTML = '<strong>On an iPhone?</strong> <a href="ios/">Open Music Scribe iOS</a>, '
+      + 'the iPhone edition you can add to your Home Screen.';
+  }
+  banner.hidden = false;
+  $('installClose').addEventListener('click', () => { banner.hidden = true; store.set(key, '1'); });
+}
+showInstallBanner();
 
 // ---------- boot ----------
 refreshMics();

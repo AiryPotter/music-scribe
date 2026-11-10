@@ -42,6 +42,13 @@
 - Handy side effect: a phone propped near the guitar is a decent mic for an acoustic.
 - Processing happens on the device, so audio never leaves your phone or PC.
 
+## Music Scribe iOS (asked 2026-11-10)
+- A third edition for **iPhone (test phone: iPhone 15)**, named **"Music Scribe iOS"**.
+- Decided: a **home-screen web app** (Safari → Add to Home Screen) at `/ios/`, built from the same code as the Android/PC app. It's free and testable right away; there's no Mac or Apple Developer account, so no App Store build for now.
+- The iOS page is generated from `index.html` (own name, manifest and icon) so the editions can't drift apart.
+- iPhone fixes live in the shared code: audio session (plays with the silent switch on), tap to resume audio, no input zoom, safe areas, PNG icons.
+- Later, if wanted: an App Store / TestFlight build by wrapping the same code with Capacitor and building on GitHub's cloud Macs (needs the $99/year Apple Developer Program).
+
 ## Target phone (answered 2026-11-08)
 - **Google Pixel 10, Android 17, Chrome.** This is the main test device.
 - Installs from Chrome as a home-screen app (PWA); a Google Play version through Capacitor can come later.
