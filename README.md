@@ -46,7 +46,9 @@ Tap **Export** (next to Clear) → **Seal & send**:
 - **Title** and **By** (your name, optional, saved only on your device) printed at the top
 - **Share…** opens the phone's share sheet: Instagram, TikTok, WhatsApp, Messages, Files, the Dropbox app…
 - **Download** saves the file
-- **Dropbox** saves straight into *Dropbox › Apps › Music Scribe* (Music Scribe can only see that one folder). Needs a one-time app key; see below.
+- **Dropbox**
+  - **PC (Chrome/Edge):** saves straight into your synced Dropbox folder (e.g. `C:\Users\you\Dropbox\Music Scribe`). Pick the folder once, allow editing, and the Dropbox desktop app syncs it. It never overwrites a file; it adds "(2)" instead. "Dropbox folder · change" switches folders.
+  - **Phones:** uploads into *Dropbox › Apps › Music Scribe* (Music Scribe can only see that one folder). Needs a one-time app key; see below.
 - **Open a saved project…** brings a .musicscribe.json back in to keep editing
 - PDF, images, text, MIDI and MusicXML are made on the device and work offline; Guitar Pro downloads its writer (alphaTab) the first time
 
