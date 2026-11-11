@@ -4,6 +4,7 @@ import { fileName, toMusicXML, toMIDI, toTextTab, toWAV, toProject, readProject 
 import { toPDF, toImage, toSVG, defaultPaper } from './pages.js';
 import { toGuitarPro } from './gp.js';
 import { dropboxReady, dropboxConnected, beginConnect, openSignInWindow, uploadToDropbox, disconnectDropbox } from './dropbox.js';
+import { folderSupported, loadFolder, folderName, ensureFolder, saveToFolder } from './dropfolder.js';
 
 export const FORMATS = [
   { id: 'pdf', name: 'PDF', what: 'Sheet music to print or send', ext: 'pdf', type: 'application/pdf', opts: ['layout', 'paper', 'look'] },
@@ -34,7 +35,7 @@ export function createExportSheet(ctx) {
     sheet: $('exportSheet'), close: $('exClose'), title: $('exTitle'), by: $('exBy'),
     formats: $('exFormats'), options: $('exOptions'), share: $('exShare'), download: $('exDownload'),
     dropbox: $('exDropbox'), status: $('exStatus'), paste: $('exPaste'), code: $('exCode'), codeGo: $('exCodeGo'),
-    link: $('exLink'), open: $('exOpen'), file: $('exFile'), dbOff: $('exDbOff'),
+    link: $('exLink'), open: $('exOpen'), file: $('exFile'), dbOff: $('exDbOff'), dbFolder: $('exDbFolder'),
   };
   const st = {
     fmt: ctx.store.get('exFormat', 'pdf'),
@@ -92,9 +93,16 @@ export function createExportSheet(ctx) {
       b.classList.toggle('on', cur === b.dataset.val);
     });
     el.share.hidden = !navigator.share;
-    el.dropbox.classList.toggle('connected', dropboxConnected());
-    el.dropbox.querySelector('span').textContent = dropboxConnected() ? 'Save to Dropbox' : 'Dropbox';
-    el.dbOff.hidden = !dropboxConnected();
+    const pc = folderSupported();
+    const linked = pc ? !!folderName() : dropboxConnected();
+    el.dropbox.classList.toggle('connected', linked);
+    el.dropbox.querySelector('span').textContent = linked ? 'Save to Dropbox' : 'Dropbox';
+    el.dropbox.title = pc
+      ? (linked ? `Saves into your “${folderName()}” folder; the Dropbox desktop app syncs it` : 'Pick your Dropbox folder once (e.g. C:\\Users\\you\\Dropbox)')
+      : 'Save straight into Dropbox › Apps › Music Scribe';
+    el.dbOff.hidden = pc || !dropboxConnected();
+    el.dbFolder.hidden = !pc || !folderName();
+    el.dbFolder.textContent = `Dropbox folder: ${folderName()} · change`;
   }
 
   // ---------- make the file ----------
@@ -187,8 +195,29 @@ export function createExportSheet(ctx) {
     ctx.onDone('dropbox');
     refresh();
   }
+  // PC: write into the synced Dropbox folder (picker / permission must open during this click)
+  function saveIntoFolder(pickNew = false) {
+    run(pickNew || !folderName() ? 'Choose your Dropbox folder' : 'Saving to your Dropbox folder', async () => {
+      let dir;
+      try {
+        dir = await ensureFolder({ pickNew });
+      } catch (err) {
+        if (err?.name === 'AbortError') { say('No folder chosen.'); return; }
+        throw err;
+      }
+      refresh();
+      const file = await makeFile();
+      say(`Saving into ${dir.name}… (${sizeText(file.size)})`, 'busy');
+      const saved = await saveToFolder(dir, file.name, file);
+      say(`Saved to ${dir.name} › ${saved}. The Dropbox app will sync it.`, 'ok');
+      ctx.onDone('dropbox');
+    });
+  }
+  el.dbFolder.addEventListener('click', () => { if (!busy) saveIntoFolder(true); });
+
   el.dropbox.addEventListener('click', () => {
     if (busy) return;
+    if (folderSupported()) { saveIntoFolder(false); return; }
     if (!dropboxReady()) {
       say('Dropbox needs a one-time setup before this button works (an app key from dropbox.com/developers).', 'err');
       return;
@@ -270,6 +299,7 @@ export function createExportSheet(ctx) {
     cache = null;
     say('');
     refresh();
+    loadFolder().then(refresh);
     el.sheet.hidden = false;
     document.body.classList.add('editing');
     requestAnimationFrame(() => document.body.style.setProperty('--tray-h', `${el.sheet.offsetHeight}px`));

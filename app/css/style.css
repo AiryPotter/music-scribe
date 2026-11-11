@@ -797,7 +797,7 @@ html[data-edition="ios"] .edition { display: inline-block; }
   border: 2px solid var(--gold); border-right-color: transparent; border-radius: 50%;
   vertical-align: -1px; animation: spin .8s linear infinite;
 }
-.ex-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.ex-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; margin-top: 4px; }
 .linkish { font: inherit; font-size: 14px; background: none; border: 0; padding: 6px 2px; color: var(--burgundy); text-decoration: underline; cursor: pointer; }
 @media (max-width: 480px) {
   .ex-credits { grid-template-columns: 1fr; }
