@@ -811,3 +811,30 @@ html[data-edition="ios"] .edition { display: inline-block; }
   :root:not([data-theme="light"]) .ed-btn.dropbox:not(.connected) { color: #5d9bff; }
   :root:not([data-theme="light"]) .ex-status.ok { color: #a7c46a; }
 }
+
+/* ---------- playback ---------- */
+.mini.icon.play { font-size: 15px; color: var(--burgundy); border-color: var(--burgundy); }
+.mini.icon.play.on { background: var(--burgundy); color: #fff6e6; font-size: 11px; letter-spacing: 1px; }
+.score .hit.playing { fill: rgba(184, 137, 43, .30); stroke: rgba(184, 137, 43, .7); stroke-width: 1; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mini.icon.play:not(.on) { color: #e7b45a; border-color: #e7b45a; }
+}
+
+/* ---------- guitar settings: one button on phones ---------- */
+.custom-tuning[hidden] { display: none; }
+.guitar-toggle { display: none; }
+@media (max-width: 480px) {
+  .guitar-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: inherit; font-size: 14px; font-weight: 700; color: var(--text);
+    min-height: 34px; padding: 0 12px; border-radius: 999px;
+    border: 1px solid var(--card-edge); background: transparent; cursor: pointer;
+  }
+  .guitar-toggle i { font-style: normal; transition: transform .15s; }
+  .guitar-tools.open .guitar-toggle i { transform: rotate(180deg); }
+  .guitar-tools:not(.open) > label, .guitar-tools:not(.open) > .custom-tuning { display: none; }
+  .guitar-tools.open .guitar-toggle { flex-basis: 100%; justify-content: space-between; }
+  .head-actions { gap: 4px; }
+  .mini.icon { min-width: 34px; height: 34px; }
+  .head-actions .ghost { padding: 4px 11px; min-height: 36px; font-size: 15px; }
+}

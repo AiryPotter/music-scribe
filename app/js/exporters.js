@@ -1,4 +1,5 @@
-// File exporters that don't need drawing: MusicXML, MIDI, text tab, WAV, project file.
+// File exporters that don't need drawing: MusicXML, MIDI, text tab, project file.
+// (There is deliberately no audio export: recordings are never kept.)
 //
 // They all take a "song" (built by main.js from the current take):
 // song = {
@@ -6,7 +7,6 @@
 //   measures: [[piece]]   piece = { slots, rest, keys:[midi], positions:[{str (1 = highest), fret}|null],
 //                                   chord, tieToNext, tieFromPrev }   (slots are 16th notes)
 //   events: [{ slot, len, notes:[{ midi }] }],
-//   audio: { samples: Float32Array, sampleRate } | null,
 //   project: { ...everything needed to reopen } }
 
 const enc = new TextEncoder();
@@ -218,29 +218,6 @@ export function toTextTab(song, { lineWidth = 78 } = {}) {
   }
   out.push('Written down with Music Scribe');
   return new Blob([out.join('\n')], { type: 'text/plain;charset=utf-8' });
-}
-
-// ---------- WAV ----------
-/** The original recording as 16-bit PCM WAV. */
-export function toWAV(audio) {
-  const { samples, sampleRate } = audio;
-  const n = samples.length;
-  const buf = new ArrayBuffer(44 + n * 2);
-  const v = new DataView(buf);
-  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE');
-  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-  str(36, 'data'); v.setUint32(40, n * 2, true);
-  // gentle normalise so quiet takes are audible, never clipping
-  let peak = 0;
-  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(samples[i]));
-  const gain = peak > 0 ? Math.min(4, 0.89 / peak) : 1;
-  for (let i = 0; i < n; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i] * gain));
-    v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
-  return new Blob([buf], { type: 'audio/wav' });
 }
 
 // ---------- project file ----------

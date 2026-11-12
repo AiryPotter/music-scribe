@@ -1,6 +1,6 @@
 // The "Seal & send" export sheet: pick a format, then Share / Download / Save to Dropbox.
 
-import { fileName, toMusicXML, toMIDI, toTextTab, toWAV, toProject, readProject } from './exporters.js';
+import { fileName, toMusicXML, toMIDI, toTextTab, toProject, readProject } from './exporters.js';
 import { toPDF, toImage, toSVG, defaultPaper } from './pages.js';
 import { toGuitarPro } from './gp.js';
 import { dropboxReady, dropboxConnected, beginConnect, openSignInWindow, uploadToDropbox, disconnectDropbox } from './dropbox.js';
@@ -14,7 +14,6 @@ export const FORMATS = [
   { id: 'midi', name: 'MIDI', what: 'GarageBand, FL Studio, any DAW', ext: 'mid', type: 'audio/midi' },
   { id: 'txt', name: 'Text tab', what: 'Paste into forums, notes, chats', ext: 'txt', type: 'text/plain' },
   { id: 'svg', name: 'SVG', what: 'Sharp at any size: slides, design apps', ext: 'svg', type: 'image/svg+xml', opts: ['layout', 'look'] },
-  { id: 'wav', name: 'Audio', what: 'Your original recording (.wav)', ext: 'wav', type: 'audio/wav', needsAudio: true },
   { id: 'project', name: 'Project', what: 'Reopen and keep editing later', ext: 'musicscribe.json', type: 'application/json' },
 ];
 
@@ -26,7 +25,7 @@ const OPTIONS = {
 };
 
 /**
- * ctx = { store, getSong(), getModel(), hasTake(), hasAudio(), setTitle(t), getTitle(),
+ * ctx = { store, getSong(), getModel(), hasTake(), setTitle(t), getTitle(),
  *         onDone(what), onOpenProject(data), pasteMode }
  */
 export function createExportSheet(ctx) {
@@ -80,9 +79,6 @@ export function createExportSheet(ctx) {
     const f = fmt();
     el.formats.querySelectorAll('.ex-format').forEach((b) => {
       const ff = FORMATS.find((x) => x.id === b.dataset.fmt);
-      const off = ff.needsAudio && !ctx.hasAudio();
-      b.disabled = off;
-      b.title = off ? 'No recording to export (this take came from a project file)' : '';
       b.classList.toggle('on', ff.id === f.id);
       b.setAttribute('aria-checked', String(ff.id === f.id));
     });
@@ -122,7 +118,6 @@ export function createExportSheet(ctx) {
       case 'gp': say('Fetching the Guitar Pro writer…', 'busy'); blob = await toGuitarPro(toMusicXML(song), song); break;
       case 'midi': blob = toMIDI(song); break;
       case 'txt': blob = toTextTab(song); break;
-      case 'wav': blob = toWAV(song.audio); break;
       case 'project': blob = toProject(song); break;
       default: throw new Error('Unknown format');
     }
@@ -295,7 +290,6 @@ export function createExportSheet(ctx) {
     if (!ctx.hasTake()) return;
     el.title.value = ctx.getTitle() || '';
     el.by.value = ctx.store.get('composer', '');
-    if (fmt().needsAudio && !ctx.hasAudio()) st.fmt = 'pdf';
     cache = null;
     say('');
     refresh();

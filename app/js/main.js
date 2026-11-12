@@ -11,6 +11,7 @@ import { onsetEvents, estimateTempo, phaseFor, detectMeter, quantize, layoutBars
 import { nameChord } from './chords.js';
 import * as E from './edits.js';
 import { playPluck } from './pluck.js';
+import { Player } from './player.js';
 import { createExportSheet } from './exportui.js';
 import { PROJECT_FORMAT } from './exporters.js';
 
@@ -29,7 +30,7 @@ const ui = {
   bpm: $('bpmInput'), bpmUp: $('bpmUp'), bpmDown: $('bpmDown'), bpmHalf: $('bpmHalf'), bpmDouble: $('bpmDouble'),
   meterSel: $('meterSelect'),
   zoomIn: $('zoomIn'), zoomOut: $('zoomOut'), zoomReset: $('zoomReset'), zoomFit: $('zoomFit'),
-  undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'),
+  undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'), play: $('playBtn'), guitarToggle: $('guitarToggle'), guitarTools: $('guitarTools'),
   tuning: $('tuningSelect'), capo: $('capoSelect'), custom: $('customTuning'),
   ed: $('editor'), edWhat: $('edWhat'), edWhere: $('edWhere'), edPrev: $('edPrev'), edNext: $('edNext'), edClose: $('edClose'),
   edNote: $('edNoteTools'), edRest: $('edRestTools'), edChips: $('edChips'), edPitch: $('edPitch'),
@@ -41,7 +42,7 @@ const DEMO = new URLSearchParams(location.search).has('demo');
 const mozart = new Mozart($('mozart'));
 let picker = new FretPicker();
 let notes = [];          // live preview notes (audio-clock times)
-let take = null;         // last finished take: { rec, notes, events, tempo, score, model, source }
+let take = null;         // last finished take: { notes, events, tempo, score, model, source } (rec = audio, only until the notes are written)
 let sel = null;          // editor selection (see edits.js)
 let session = null;
 let tracker = null;
@@ -121,6 +122,8 @@ function syncGuitarUi() {
   ui.custom.hidden = guitar.id !== 'custom';
   if (guitar.id === 'custom' && !ui.custom.childElementCount) buildCustomTuning();
   ui.tuning.title = tuningLabel();
+  const gName = guitar.id === 'custom' ? `Custom (${tuningLetters(tuningStrings())})` : TUNINGS[guitar.id].name;
+  ui.guitarToggle.querySelector('span').textContent = `Guitar: ${gName}${guitar.capo ? ` · Capo ${guitar.capo}` : ''}`;
 }
 function onGuitarChange() {
   rebuildPicker();
@@ -409,9 +412,10 @@ async function analyzeTake() {
         : `Mozart is writing it out… ${pct}`, true);
     });
   } catch (err) {
-    if (err?.name === 'AbortError') return; // stopped by Clear / Begin
+    if (err?.name === 'AbortError') { t.rec = null; return; } // stopped by Clear / Begin
     console.warn('Accurate pass failed, using live notes', err);
   }
+  t.rec = null; // the recording is thrown away here: only the written notes are kept
   if (take !== t) return; // a new take started meanwhile
   t.source = result && result.length ? 'accurate' : 'live';
   t.notes = t.source === 'accurate' ? result : t.live;
@@ -460,6 +464,8 @@ function requantize(t) {
 
 /** Score → drawable model: bars, ties, tab positions, chord names, tap targets, selection. */
 function layoutTake(t, { quiet = false } = {}) {
+  stopPlayback();
+  resumeFrom = null;
   const { events, tempo } = t.score;
   const meter = tempo.meter;
   const barSlots = meter * SLOTS_PER_BEAT;
@@ -605,6 +611,8 @@ function scheduleRender() {
     const page = ui.score.parentElement;
     if (session) page.scrollTop = page.scrollHeight;
     ui.exportBtn.disabled = !(take?.model && !session);
+    ui.play.disabled = ui.exportBtn.disabled;
+    if (player.playing) showPlayhead(player.shown);
     if (sel && !ui.ed.hidden) requestAnimationFrame(() => keepSelVisible(page));
   }, 120);
 }
@@ -694,6 +702,64 @@ function audition(midis) {
   playPluck(earCtx, midis);
 }
 
+// ---------- playback (plays the written notes, never a recording) ----------
+let resumeFrom = null; // event index to continue from after Pause
+let lastPlayhead = null;
+function showPlayhead(evIdx) {
+  lastPlayhead?.classList.remove('playing');
+  lastPlayhead = null;
+  if (evIdx < 0 || !take?.refs) return;
+  const ref = take.refs.findIndex((r) => r.kind === 'ev' && r.idx === evIdx);
+  const rect = ui.score.querySelector(`.hit[data-ref="${ref}"]`);
+  if (!rect) return;
+  rect.classList.add('playing');
+  lastPlayhead = rect;
+  // keep the sounding note on screen inside the manuscript page
+  const page = ui.score.parentElement;
+  const z = Number(document.documentElement.style.zoom || 1) || 1;
+  const b = rect.getBoundingClientRect(), pg = page.getBoundingClientRect();
+  if (b.bottom > pg.bottom - 8 || b.top < pg.top) page.scrollTop += (b.top - pg.top - 16) / z;
+}
+const player = new Player({
+  onStep: showPlayhead,
+  onEnd: (finished) => {
+    ui.play.textContent = '▶︎';
+    ui.play.setAttribute('aria-label', 'Play');
+    ui.play.classList.remove('on');
+    if (finished) resumeFrom = null;
+    if (!session && !busy) mozart.set('asleep');
+  },
+});
+function stopPlayback() { if (player.playing) player.stop(false); }
+function togglePlay() {
+  if (!take?.score?.events?.length || session) return;
+  if (player.playing) { // pause: remember where we were
+    const at = player.position;
+    player.stop(false);
+    resumeFrom = at;
+    return;
+  }
+  const events = take.score.events;
+  let from = resumeFrom ?? 0;
+  if (sel?.kind === 'ev') from = sel.idx;
+  else if (sel?.kind === 'rest') from = Math.max(0, events.findIndex((e) => e.slot >= sel.at));
+  if (sel) closeEditor(); // (redraws, which also clears resumeFrom)
+  if (exportSheet.isOpen) exportSheet.close();
+  setAudioSession('playback');
+  try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
+  wake(earCtx);
+  player.start(earCtx, events, take.score.tempo.bpm, from);
+  ui.play.textContent = '❚❚';
+  ui.play.setAttribute('aria-label', 'Pause');
+  ui.play.classList.add('on');
+  mozart.set('idle');
+}
+ui.play.addEventListener('click', togglePlay);
+ui.guitarToggle.addEventListener('click', () => {
+  const open = ui.guitarTools.classList.toggle('open');
+  ui.guitarToggle.setAttribute('aria-expanded', String(open));
+});
+
 // ---------- the note editor (tap a note or rest) ----------
 const lenName = (slots) => E.LENGTHS.find(([s]) => s === slots)?.[1] ?? `${slots / 4} beats`;
 function whereLabel(slot) {
@@ -730,6 +796,8 @@ function select(ref) {
   if (sel.kind === 'ev') audition(take.score.events[sel.idx].notes.map((n) => n.midi)); // hear what you tapped
 }
 function closeEditor({ relayout = true } = {}) {
+  stopPlayback(); // Clear, Begin, Undo and opening a project all come through here
+  resumeFrom = null;
   const had = !!sel;
   sel = null;
   ui.ed.hidden = true;
@@ -900,6 +968,7 @@ document.addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
   if (mod && !typing && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); return; }
   if (mod && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
   if (!sel || typing || mod || e.altKey) return;
   if (e.key === 'Enter' && (e.target.tagName === 'BUTTON' || sel.kind !== 'rest')) return;
   const keys = {
@@ -931,7 +1000,6 @@ function buildSong() {
     tuningLetters: tuningLetters(strings),
     measures: t.model.measures,
     events: t.score.events,
-    audio: t.rec ? { samples: t.rec.samples, sampleRate: t.rec.sampleRate } : null,
     project: {
       format: PROJECT_FORMAT,
       version: 1,
@@ -988,7 +1056,6 @@ const exportSheet = createExportSheet({
   getModel: () => ({ ...take.model, header: '' }),
   version: () => layoutVersion,
   hasTake: () => !!take?.model && !session,
-  hasAudio: () => !!take?.rec?.samples?.length,
   getTitle: () => take?.title || '',
   setTitle: (v) => { if (take) take.title = v; },
   pasteMode: IS_IOS && IS_STANDALONE, // home-screen iPhone apps can't use sign-in pop-ups

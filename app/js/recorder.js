@@ -1,4 +1,5 @@
-// Records the raw take (full-quality PCM) while you play, for the accurate pass and WAV export.
+// Holds the take in memory while you play, only so the accurate pass can read it.
+// It is never saved, uploaded or exported; main.js discards it as soon as the notes are written.
 
 export class Recorder {
   static async create(ctx, sourceNode) {

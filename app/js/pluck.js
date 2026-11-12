@@ -48,7 +48,7 @@ function pluckBuffer(ctx, midi) {
  * Play one note or a strummed chord (lowest string first).
  * midis: [midi]; at: AudioContext time; returns the time the sound has mostly died away.
  */
-export function playPluck(ctx, midis, { at = ctx.currentTime + 0.03, strum = 0.028, volume = 0.5 } = {}) {
+export function playPluck(ctx, midis, { at = ctx.currentTime + 0.03, strum = 0.028, volume = 0.5, dest = ctx.destination } = {}) {
   const sorted = [...midis].sort((a, b) => a - b);
   const level = volume / Math.sqrt(Math.max(1, sorted.length));
   let end = at;
@@ -60,7 +60,7 @@ export function playPluck(ctx, midis, { at = ctx.currentTime + 0.03, strum = 0.0
     lp.type = 'lowpass';
     lp.frequency.value = 3200;
     g.gain.value = level;
-    src.connect(lp).connect(g).connect(ctx.destination);
+    src.connect(lp).connect(g).connect(dest);
     const t = at + k * strum;
     src.start(t);
     end = Math.max(end, t + src.buffer.duration);

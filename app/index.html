@@ -188,6 +188,7 @@
         <h2>Thy Manuscript</h2>
         <span id="noteCount" class="note-count">0 notes</span>
         <div class="head-actions">
+          <button id="playBtn" class="mini icon play" type="button" aria-label="Play" title="Play what is written (Space)" disabled>▶&#xFE0E;</button>
           <button id="undoBtn" class="mini icon" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>↶</button>
           <button id="redoBtn" class="mini icon" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>↷</button>
           <button id="clearBtn" class="ghost" type="button">Clear</button>
@@ -214,7 +215,8 @@
           </select>
         </label>
       </div>
-      <div class="score-tools guitar-tools">
+      <div id="guitarTools" class="score-tools guitar-tools">
+        <button id="guitarToggle" class="guitar-toggle" type="button" aria-expanded="false"><span>Guitar: Standard</span> <i aria-hidden="true">▾</i></button>
         <label class="meter-pick">
           <span>Tuning</span>
           <select id="tuningSelect" aria-label="Guitar tuning"></select>
@@ -323,7 +325,7 @@
     </div>
   </section>
 
-  <footer class="colophon">Your audio never leaves this device. · <span id="editionName">Music Scribe</span> · M4</footer>
+  <footer class="colophon">Your playing is never saved or sent anywhere: only the written notes are kept. · <span id="editionName">Music Scribe</span> · M4</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
   <script type="module" src="js/main.js"></script>

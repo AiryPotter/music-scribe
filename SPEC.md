@@ -31,8 +31,9 @@
 | **MIDI (.mid)** | DAWs (FL Studio, Ableton, GarageBand, Reaper) |
 | **ASCII tab (.txt)** | Pasting into forums, texts or notes |
 | **PNG / SVG** | Images for social posts or slides |
-| **Audio (.wav)** | Your original take |
 | **Project (.musicscribe.json)** | Reopening and editing later |
+
+**No audio export, and no audio kept (asked 2026-11-11):** the recording is discarded as soon as the notes are written; only the written music is ever stored or exported.
 
 ## Two versions, one name: "Music Scribe" (answered 2026-11-08)
 - **Phone is the main version.** The PC version uses the same app and the same name.

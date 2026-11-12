@@ -41,7 +41,7 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 
 ## Status: Milestone 4 ✅
 Tap **Export** (next to Clear) → **Seal & send**:
-- **Formats**: PDF · Image (PNG: square post, 9:16 story, or whole page) · MusicXML · Guitar Pro (.gp) · MIDI · Text tab · SVG · Audio (.wav, your original recording) · Project (.musicscribe.json, reopen and keep editing)
+- **Formats**: PDF · Image (PNG: square post, 9:16 story, or whole page) · MusicXML · Guitar Pro (.gp) · MIDI · Text tab · SVG · Project (.musicscribe.json, reopen and keep editing)
 - **Options**: show notes + tab, notes only, or tab only · paper A4 / Letter (picked from your phone's language) · clean white or parchment look
 - **Title** and **By** (your name, optional, saved only on your device) printed at the top
 - **Share…** opens the phone's share sheet: Instagram, TikTok, WhatsApp, Messages, Files, the Dropbox app…
@@ -58,7 +58,13 @@ Tap **Export** (next to Clear) → **Seal & send**:
 3. **Settings** tab → **OAuth 2 / Redirect URIs**: add `https://airypotter.github.io/music-scribe/dropbox.html` and `http://localhost:5173/dropbox.html`. Set **Allow public clients (Implicit Grant & PKCE)** to **Allow**.
 4. Copy the **App key** (not the secret) into `DROPBOX_APP_KEY` in `app/js/dropbox.js`.
 
-Next (M5): polish: saved takes library, themes, playback.
+## Privacy: no audio is kept
+The only thing Music Scribe keeps is the written music. The recording lives in memory just long enough for Mozart to write out the notes, then it is discarded. It is never saved, exported, uploaded, or included in project files. There is no audio export.
+
+## UI improvements (see UI-PLAN.md)
+- **Phase 1 ✅** **Play** button (▶ in the manuscript header, or Space on PC): plays the written notes with the plucked-guitar sound, a gold cursor follows along, starts from the selected note, Pause resumes where it stopped. On phones, Tuning and Capo fold into one **Guitar** button.
+- Phase 2: slimmer editor tray, progress bar, safer Clear.
+- Phase 3: first-screen hints, saved takes library (notes only).
 
 ## Run it on the PC
 ```
