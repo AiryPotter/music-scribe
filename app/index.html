@@ -187,11 +187,11 @@
       <div class="score-head">
         <h2>Thy Manuscript</h2>
         <span id="noteCount" class="note-count">0 notes</span>
+        <button id="clearBtn" class="clear-btn" type="button" title="Clear the manuscript (Undo brings it back)">Clear</button>
         <div class="head-actions">
           <button id="playBtn" class="mini icon play" type="button" aria-label="Play" title="Play what is written (Space)" disabled>▶&#xFE0E;</button>
           <button id="undoBtn" class="mini icon" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>↶</button>
           <button id="redoBtn" class="mini icon" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>↷</button>
-          <button id="clearBtn" class="ghost" type="button">Clear</button>
           <button id="exportBtn" class="ghost seal-btn" type="button" disabled title="Export, share or save to Dropbox">Export</button>
         </div>
       </div>
@@ -227,6 +227,10 @@
         </label>
         <div id="customTuning" class="custom-tuning" role="group" aria-label="Custom tuning, lowest string first" hidden></div>
       </div>
+      <div id="scoreProgress" class="score-progress" hidden>
+        <div class="sp-bar" role="progressbar" aria-label="Writing out the notes" aria-valuemin="0" aria-valuemax="100"><i id="scoreProgressFill"></i></div>
+        <span id="scoreProgressText">0%</span>
+      </div>
       <div class="page">
         <div id="score" class="score"></div>
       </div>
@@ -257,28 +261,34 @@
         <button class="ed-btn" type="button" data-act="oct+" aria-label="Up an octave">+8ve</button>
       </div>
       <div class="ed-row">
-        <span class="ed-label">String</span>
-        <button class="ed-btn" type="button" data-act="str-" aria-label="Lower string">◀</button>
-        <output id="edString" class="ed-value wide">—</output>
-        <button class="ed-btn" type="button" data-act="str+" aria-label="Higher string">▶</button>
-      </div>
-      <div class="ed-row">
         <span class="ed-label">Length</span>
         <div id="edLens" class="ed-lens" role="group" aria-label="Note length"></div>
-      </div>
-      <div class="ed-row">
-        <span class="ed-label">Chord</span>
-        <input id="edChord" class="ed-chord" type="text" maxlength="14" placeholder="auto" aria-label="Chord name" autocomplete="off" spellcheck="false">
-        <button class="ed-btn" type="button" data-act="chord-auto">Auto</button>
-        <button class="ed-btn" type="button" data-act="chord-hide">Hide</button>
       </div>
       <div class="ed-row ed-actions">
         <button class="ed-btn" type="button" data-act="add" title="Add a note: the selected note doubled an octave up">+ Note</button>
         <button class="ed-btn" type="button" data-act="remove">− Note</button>
-        <button class="ed-btn" type="button" data-act="join" title="Tie to the next note (same notes, straight after)">⌒ Tie</button>
-        <button class="ed-btn" type="button" data-act="split" title="Untie into separately played notes">Untie</button>
         <button class="ed-btn" type="button" data-act="rest">Make rest</button>
         <button class="ed-btn" type="button" data-act="listen" aria-label="Hear it">🔊</button>
+        <button id="edMoreBtn" class="ed-btn more" type="button" aria-expanded="false" aria-controls="edMore" title="String, chord name and ties">More <i aria-hidden="true">▾</i></button>
+      </div>
+      <div id="edMore" class="ed-more" hidden>
+        <div class="ed-row">
+          <span class="ed-label">String</span>
+          <button class="ed-btn" type="button" data-act="str-" aria-label="Lower string">◀</button>
+          <output id="edString" class="ed-value wide">—</output>
+          <button class="ed-btn" type="button" data-act="str+" aria-label="Higher string">▶</button>
+        </div>
+        <div class="ed-row">
+          <span class="ed-label">Chord</span>
+          <input id="edChord" class="ed-chord" type="text" maxlength="14" placeholder="auto" aria-label="Chord name" autocomplete="off" spellcheck="false">
+          <button class="ed-btn" type="button" data-act="chord-auto">Auto</button>
+          <button class="ed-btn" type="button" data-act="chord-hide">Hide</button>
+        </div>
+        <div class="ed-row">
+          <span class="ed-label">Tie</span>
+          <button class="ed-btn" type="button" data-act="join" title="Tie to the next note (same notes, straight after)">⌒ Tie to next</button>
+          <button class="ed-btn" type="button" data-act="split" title="Untie into separately played notes">Untie</button>
+        </div>
       </div>
     </div>
 
@@ -288,6 +298,12 @@
       </div>
     </div>
   </section>
+
+  <!-- Small message with an action (e.g. Cleared · Undo) -->
+  <div id="toast" class="toast" role="status" hidden>
+    <span id="toastText"></span>
+    <button id="toastBtn" class="ed-btn primary" type="button">Undo</button>
+  </div>
 
   <!-- Export sheet: "Seal & send" -->
   <section id="exportSheet" class="editor sheet" hidden aria-label="Export">

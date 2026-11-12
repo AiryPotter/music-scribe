@@ -63,7 +63,7 @@ The only thing Music Scribe keeps is the written music. The recording lives in m
 
 ## UI improvements (see UI-PLAN.md)
 - **Phase 1 ✅** **Play** button (▶ in the manuscript header, or Space on PC): plays the written notes with the plucked-guitar sound, a gold cursor follows along, starts from the selected note, Pause resumes where it stopped. On phones, Tuning and Capo fold into one **Guitar** button.
-- Phase 2: slimmer editor tray, progress bar, safer Clear.
+- **Phase 2 ✅** Slimmer editor tray (String, Chord name and Tie sit behind **More**, which remembers if you leave it open); a progress bar on the manuscript while Mozart writes; **Clear** moved next to the note count, away from Export, with a "Manuscript cleared · Undo" message.
 - Phase 3: first-screen hints, saved takes library (notes only).
 
 ## Run it on the PC

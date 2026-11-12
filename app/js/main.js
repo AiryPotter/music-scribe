@@ -256,6 +256,8 @@ async function start() {
   busy = true;
   ui.record.disabled = true;
   cancelTranscription(); // a new take replaces one still being written out
+  endProgress();
+  hideToast();
   preloadTranscriber();
   try {
     session = ui.mic.value === '__demo__' ? openDemo() : await openMic(store.get('mic', ''));
@@ -377,12 +379,15 @@ ui.clear.addEventListener('click', () => {
   const wasWriting = take && !take.score;
   cancelTranscription();
   if (wasWriting) mozart.set('asleep');
-  if (take?.score) pushHistory();
+  const hadScore = !!take?.score;
+  if (hadScore) pushHistory();
   notes = [];
   take = null;
   closeEditor();
+  endProgress();
   picker.reset();
-  setStatus(history.past.length ? 'Cleared · Undo brings it back' : 'Live preview');
+  setStatus('Live preview');
+  if (hadScore) showToast('Manuscript cleared', undo);
   ui.count.textContent = '0 notes';
   scheduleRender();
 });
@@ -402,20 +407,20 @@ async function analyzeTake() {
   const t = take;
   mozart.set('squint');
   setStatus('Mozart is writing it out…', true);
+  setProgress(0);
   let result = null;
   try {
     result = await transcribe(t.rec.samples, t.rec.sampleRate, (p, mode) => {
       const pct = `${Math.round(p * 100)}%`;
       mozart.say(pct);
-      setStatus(mode === 'slow'
-        ? `Mozart is writing it out (slow mode: no graphics chip available)… ${pct} · Clear to stop`
-        : `Mozart is writing it out… ${pct}`, true);
+      if (take === t) setProgress(p, mode === 'slow');
     });
   } catch (err) {
     if (err?.name === 'AbortError') { t.rec = null; return; } // stopped by Clear / Begin
     console.warn('Accurate pass failed, using live notes', err);
   }
   t.rec = null; // the recording is thrown away here: only the written notes are kept
+  if (take === t) endProgress();
   if (take !== t) return; // a new take started meanwhile
   t.source = result && result.length ? 'accurate' : 'live';
   t.notes = t.source === 'accurate' ? result : t.live;
@@ -652,6 +657,7 @@ function pushHistory() {
   updateUndoUi();
 }
 function restore(s) {
+  hideToast();
   const keepSel = s.take === take && sel?.kind === 'ev' ? sel : null; // stay on the same note while undoing
   closeEditor({ relayout: false });
   take = s.take;
@@ -701,6 +707,42 @@ function audition(midis) {
   wake(earCtx);
   playPluck(earCtx, midis);
 }
+
+// ---------- small message with an Undo button ----------
+let toastTimer = 0;
+function hideToast() { clearTimeout(toastTimer); $('toast').hidden = true; }
+function showToast(text, onAction) {
+  $('toastText').textContent = text;
+  $('toastBtn').onclick = () => { hideToast(); onAction(); };
+  $('toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 8000);
+}
+
+// ---------- progress on the manuscript while Mozart writes ----------
+function setProgress(p, slow = false) {
+  const pct = Math.round(p * 100);
+  $('scoreProgress').hidden = false;
+  $('scoreProgressFill').style.width = `${pct}%`;
+  $('scoreProgress').querySelector('.sp-bar').setAttribute('aria-valuenow', String(pct));
+  $('scoreProgressText').textContent = slow ? `${pct}% · slow mode (no graphics chip) · Clear to stop` : `${pct}%`;
+  ui.record.classList.add('writing');
+}
+function endProgress() {
+  $('scoreProgress').hidden = true;
+  ui.record.classList.remove('writing');
+}
+
+// editor tray: String, Chord name and Tie live behind "More"
+function setMore(open) {
+  $('edMore').hidden = !open;
+  $('edMoreBtn').setAttribute('aria-expanded', String(open));
+  $('edMoreBtn').classList.toggle('on', open);
+  store.set('edMore', open ? '1' : '0');
+  requestAnimationFrame(() => document.body.style.setProperty('--tray-h', `${ui.ed.offsetHeight}px`));
+}
+$('edMoreBtn').addEventListener('click', () => setMore($('edMore').hidden));
+setMore(store.get('edMore', '0') === '1');
 
 // ---------- playback (plays the written notes, never a recording) ----------
 let resumeFrom = null; // event index to continue from after Pause

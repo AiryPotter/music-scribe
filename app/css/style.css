@@ -838,3 +838,39 @@ html[data-edition="ios"] .edition { display: inline-block; }
   .mini.icon { min-width: 34px; height: 34px; }
   .head-actions .ghost { padding: 4px 11px; min-height: 36px; font-size: 15px; }
 }
+
+/* ---------- Phase 2: slimmer tray, progress bar, safer Clear ---------- */
+.ed-more[hidden] { display: none; }
+.ed-btn.more i { font-style: normal; margin-left: 4px; transition: transform .15s; }
+.ed-btn.more.on i { transform: rotate(180deg); }
+.ed-btn.more { margin-left: auto; }
+
+.score-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+.score-progress[hidden] { display: none; }
+.sp-bar { flex: 1; height: 10px; border-radius: 5px; overflow: hidden; border: 1px solid var(--card-edge); background: color-mix(in srgb, var(--text) 10%, transparent); }
+.sp-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--burgundy)); transition: width .25s ease-out; }
+#scoreProgressText { font-size: 14px; font-weight: 700; color: var(--text-soft); min-width: 3ch; text-align: right; }
+.seal.writing { filter: saturate(.55) brightness(.92); }
+.seal.writing .seal-icon { animation: spin 1.6s linear infinite; display: inline-block; }
+
+.clear-btn {
+  font: inherit; font-size: 14px; color: var(--text-soft);
+  background: transparent; border: 1px solid transparent; border-radius: 999px;
+  padding: 2px 10px; min-height: 32px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+.clear-btn:hover { border-color: var(--card-edge); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 30; display: flex; align-items: center; gap: 12px;
+  padding: 8px 8px 8px 16px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--gold); box-shadow: 0 6px 24px rgba(60, 35, 10, .35);
+  font-size: 16px; white-space: nowrap; animation: tray-up .18s ease-out;
+}
+.toast[hidden] { display: none; }
+.toast .ed-btn { min-height: 36px; border-radius: 999px; }
+@media (max-width: 480px) {
+  #scoreProgressText { font-size: 13px; text-align: left; }
+  .score-progress { flex-wrap: wrap; gap: 4px 10px; }
+  .sp-bar { flex-basis: 100%; }
+}

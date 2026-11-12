@@ -22,7 +22,7 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - **PC:** unchanged; there's room for everything.
 - **Result:** the manuscript starts about 90 px higher on a phone.
 
-## Phase 2: Calmer editing and safer buttons
+## Phase 2: Calmer editing and safer buttons ✅ done 2026-11-12
 
 ### 2a. Slimmer editor tray
 - Pitch, Length and the action row (+ Note, − Note, Make rest, 🔊) stay visible.
