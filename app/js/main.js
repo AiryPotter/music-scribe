@@ -6,7 +6,7 @@ import { renderScore, previewModel } from './score.js';
 import { Mozart } from './mozart.js';
 import { Recorder } from './recorder.js';
 import { Metronome } from './metronome.js';
-import { transcribe, preloadTranscriber } from './transcribe.js';
+import { transcribe, preloadTranscriber, cancelTranscription } from './transcribe.js';
 import { onsetEvents, estimateTempo, phaseFor, detectMeter, quantize, layoutBars, SLOTS_PER_BEAT } from './rhythm.js';
 import { nameChord } from './chords.js';
 import * as E from './edits.js';
@@ -252,6 +252,7 @@ async function start() {
   if (busy) return;
   busy = true;
   ui.record.disabled = true;
+  cancelTranscription(); // a new take replaces one still being written out
   preloadTranscriber();
   try {
     session = ui.mic.value === '__demo__' ? openDemo() : await openMic(store.get('mic', ''));
@@ -370,6 +371,9 @@ async function stop() {
 ui.record.addEventListener('click', () => (session ? stop() : start()));
 ui.clear.addEventListener('click', () => {
   if (session) return;
+  const wasWriting = take && !take.score;
+  cancelTranscription();
+  if (wasWriting) mozart.set('asleep');
   if (take?.score) pushHistory();
   notes = [];
   take = null;
@@ -397,12 +401,15 @@ async function analyzeTake() {
   setStatus('Mozart is writing it out…', true);
   let result = null;
   try {
-    result = await transcribe(t.rec.samples, t.rec.sampleRate, (p) => {
+    result = await transcribe(t.rec.samples, t.rec.sampleRate, (p, mode) => {
       const pct = `${Math.round(p * 100)}%`;
       mozart.say(pct);
-      setStatus(`Mozart is writing it out… ${pct}`, true);
+      setStatus(mode === 'slow'
+        ? `Mozart is writing it out (slow mode: no graphics chip available)… ${pct} · Clear to stop`
+        : `Mozart is writing it out… ${pct}`, true);
     });
   } catch (err) {
+    if (err?.name === 'AbortError') return; // stopped by Clear / Begin
     console.warn('Accurate pass failed, using live notes', err);
   }
   if (take !== t) return; // a new take started meanwhile
