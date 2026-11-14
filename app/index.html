@@ -192,6 +192,7 @@
           <button id="playBtn" class="mini icon play" type="button" aria-label="Play" title="Play what is written (Space)" disabled>▶&#xFE0E;</button>
           <button id="undoBtn" class="mini icon" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>↶</button>
           <button id="redoBtn" class="mini icon" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>↷</button>
+          <button id="takesBtn" class="ghost" type="button" title="Your saved takes">Takes</button>
           <button id="exportBtn" class="ghost seal-btn" type="button" disabled title="Export, share or save to Dropbox">Export</button>
         </div>
       </div>
@@ -232,6 +233,15 @@
         <span id="scoreProgressText">0%</span>
       </div>
       <div class="page">
+        <div id="emptyHint" class="empty-hint" hidden>
+          <ol>
+            <li><b>Tap Begin</b> and allow the microphone.</li>
+            <li><b>Play</b> your guitar. A rough preview appears as you go.</li>
+            <li><b>Tap Cease.</b> Mozart writes out the notes, tab, rhythm and chords.</li>
+          </ol>
+          <p>Then tap any note to hear it or fix it, press ▶&#xFE0E; to play it back, and Export to share it.</p>
+          <button id="hintTakes" class="linkish" type="button" hidden></button>
+        </div>
         <div id="score" class="score"></div>
       </div>
       <p id="scoreHint" class="hint small">While you play, a quick preview appears. Press Cease and Mozart writes the accurate version: real rhythm, tempo and chords. Then tap any note to hear it and fix it.</p>
@@ -296,6 +306,21 @@
       <div class="ed-row">
         <button class="ed-btn primary" type="button" data-act="fill">+ Add a note here</button>
       </div>
+    </div>
+  </section>
+
+  <!-- Saved takes (written notes only, kept on this device) -->
+  <section id="takesSheet" class="editor sheet" hidden aria-label="Saved takes">
+    <div class="ed-head">
+      <div class="ed-title">
+        <strong>Thy Library</strong>
+        <span>Saved on this device · notes only, never audio</span>
+      </div>
+      <button id="tkClose" class="mini" type="button" aria-label="Close saved takes">✕</button>
+    </div>
+    <div class="ed-body">
+      <p id="tkEmpty" class="hint" hidden>No saved takes yet. Each take is saved here by itself once Mozart has written it out.</p>
+      <ul id="tkList" class="tk-list"></ul>
     </div>
   </section>
 

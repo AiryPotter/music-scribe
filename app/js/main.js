@@ -12,6 +12,7 @@ import { nameChord } from './chords.js';
 import * as E from './edits.js';
 import { playPluck } from './pluck.js';
 import { Player } from './player.js';
+import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
 import { createExportSheet } from './exportui.js';
 import { PROJECT_FORMAT } from './exporters.js';
 
@@ -30,7 +31,7 @@ const ui = {
   bpm: $('bpmInput'), bpmUp: $('bpmUp'), bpmDown: $('bpmDown'), bpmHalf: $('bpmHalf'), bpmDouble: $('bpmDouble'),
   meterSel: $('meterSelect'),
   zoomIn: $('zoomIn'), zoomOut: $('zoomOut'), zoomReset: $('zoomReset'), zoomFit: $('zoomFit'),
-  undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'), play: $('playBtn'), guitarToggle: $('guitarToggle'), guitarTools: $('guitarTools'),
+  undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'), takes: $('takesBtn'), play: $('playBtn'), guitarToggle: $('guitarToggle'), guitarTools: $('guitarTools'),
   tuning: $('tuningSelect'), capo: $('capoSelect'), custom: $('customTuning'),
   ed: $('editor'), edWhat: $('edWhat'), edWhere: $('edWhere'), edPrev: $('edPrev'), edNext: $('edNext'), edClose: $('edClose'),
   edNote: $('edNoteTools'), edRest: $('edRestTools'), edChips: $('edChips'), edPitch: $('edPitch'),
@@ -256,6 +257,8 @@ async function start() {
   busy = true;
   ui.record.disabled = true;
   cancelTranscription(); // a new take replaces one still being written out
+  flushSave();
+  if (!$('takesSheet').hidden) closeTakes();
   endProgress();
   hideToast();
   preloadTranscriber();
@@ -379,6 +382,7 @@ ui.clear.addEventListener('click', () => {
   const wasWriting = take && !take.score;
   cancelTranscription();
   if (wasWriting) mozart.set('asleep');
+  flushSave();
   const hadScore = !!take?.score;
   if (hadScore) pushHistory();
   notes = [];
@@ -430,6 +434,8 @@ async function analyzeTake() {
   t.events = onsetEvents(t.notes);
   computeTempo(t);
   requantize(t);
+  t.id = newTakeId();
+  t.createdAt = Date.now();
   layoutTake(t);
   mozart.set('bow');
   mozart.say('Bravo!');
@@ -532,6 +538,7 @@ function layoutTake(t, { quiet = false } = {}) {
   }
   scheduleRender();
   if (sel) refreshEditor();
+  if (!quiet) scheduleSave();
 }
 
 // ---------- tempo controls ----------
@@ -605,6 +612,15 @@ function scheduleRender() {
   if (renderTimer) return;
   renderTimer = setTimeout(() => {
     renderTimer = 0;
+    const empty = !take && !notes.length && !session;
+    $('emptyHint').hidden = !empty;
+    ui.score.hidden = empty;
+    ui.clear.hidden = empty;
+    if (empty) {
+      ui.exportBtn.disabled = true;
+      ui.play.disabled = true;
+      return;
+    }
     if (take?.model && !session) {
       renderScore(ui.score, take.model);
     } else {
@@ -825,6 +841,7 @@ E.LENGTHS.forEach(([slots, name]) => {
 function select(ref) {
   if (!ref || !take?.score || session) return;
   if (exportSheet.isOpen) exportSheet.close();
+  if (!$('takesSheet').hidden) closeTakes();
   if (ref.kind === 'ev') {
     const ev = take.score.events[ref.idx];
     const keep = sel?.kind === 'ev' && sel.idx === ref.idx;
@@ -839,6 +856,7 @@ function select(ref) {
 }
 function closeEditor({ relayout = true } = {}) {
   stopPlayback(); // Clear, Begin, Undo and opening a project all come through here
+  if (!$('takesSheet').hidden) closeTakes();
   resumeFrom = null;
   const had = !!sel;
   sel = null;
@@ -1056,8 +1074,9 @@ function buildSong() {
 }
 
 /** Load a .musicscribe.json project as the current take (Undo brings back what was there). */
-function openProject(data) {
+function openProject(data, saved = null) {
   if (session) return;
+  flushSave();
   if (take?.score) pushHistory();
   closeEditor({ relayout: false });
   const g = data.guitar || {};
@@ -1084,6 +1103,8 @@ function openProject(data) {
     tempo: { ...data.take.score.tempo },
     title: data.title || '',
     edited: false,
+    id: saved?.id || newTakeId(),            // from the library, or a new entry for an opened file
+    createdAt: saved?.createdAt || Date.now(),
   };
   if (data.composer && !store.get('composer', '')) store.set('composer', data.composer);
   ui.bpm.value = String(Math.round(take.tempo.bpm));
@@ -1099,7 +1120,7 @@ const exportSheet = createExportSheet({
   version: () => layoutVersion,
   hasTake: () => !!take?.model && !session,
   getTitle: () => take?.title || '',
-  setTitle: (v) => { if (take) take.title = v; },
+  setTitle: (v) => { if (take) { take.title = v; scheduleSave(); } },
   pasteMode: IS_IOS && IS_STANDALONE, // home-screen iPhone apps can't use sign-in pop-ups
   onOpenProject: openProject,
   onDone: () => {
@@ -1114,6 +1135,114 @@ ui.exportBtn.addEventListener('click', () => {
   exportSheet.open();
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && exportSheet.isOpen) exportSheet.close(); });
+
+// ---------- saved takes library (written notes only, never audio) ----------
+let saveTimer = 0;
+let takeCount = 0;
+function persistTake() {
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  const t = take;
+  if (!t?.id || !t.model || !t.score?.events?.length || session) return;
+  const song = buildSong();
+  t.createdAt ||= Date.now();
+  const rec = {
+    id: t.id,
+    title: t.title || '',
+    createdAt: t.createdAt,
+    savedAt: Date.now(),
+    bpm: Math.round(t.score.tempo.bpm),
+    meter: t.score.tempo.meter,
+    bars: t.model.measures.length,
+    noteCount: t.score.events.reduce((n, e) => n + e.notes.length, 0),
+    data: song.project, // notes, edits, tuning, title: no audio exists in here
+  };
+  saveTake(rec).then(refreshTakeCount).catch((err) => console.warn('Could not save the take on this device', err));
+}
+function scheduleSave() {
+  if (!take?.id) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persistTake, 700);
+}
+function flushSave() { if (saveTimer) persistTake(); }
+async function refreshTakeCount() {
+  takeCount = (await listTakes()).length;
+  ui.takes.textContent = takeCount ? `Takes (${takeCount})` : 'Takes';
+  const link = $('hintTakes');
+  link.hidden = !takeCount;
+  link.textContent = takeCount === 1 ? 'Or open your saved take' : `Or open one of your ${takeCount} saved takes`;
+}
+const fmtWhen = (ms) => new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+async function renderTakes() {
+  const list = await listTakes();
+  $('tkEmpty').hidden = list.length > 0;
+  $('tkList').innerHTML = list.map((r) => `
+    <li class="tk-item${take?.id === r.id ? ' current' : ''}" data-id="${escHtml(r.id)}">
+      <button type="button" class="tk-open" data-do="open">
+        <strong>${escHtml(r.title || 'Untitled')}</strong>
+        <small>${fmtWhen(r.savedAt)} · ${r.bars} bar${r.bars === 1 ? '' : 's'} · ♩=${r.bpm} · ${r.noteCount} notes${take?.id === r.id ? ' · open now' : ''}</small>
+      </button>
+      <button type="button" class="mini" data-do="rename" aria-label="Rename" title="Rename">✎</button>
+      <button type="button" class="mini" data-do="delete" aria-label="Delete" title="Delete">🗑</button>
+    </li>`).join('');
+  takesCache = list;
+}
+let takesCache = [];
+function openTakes() {
+  if (session) return;
+  flushSave();
+  closeEditor();
+  if (exportSheet.isOpen) exportSheet.close();
+  renderTakes().then(() => {
+    $('takesSheet').hidden = false;
+    document.body.classList.add('editing');
+    requestAnimationFrame(() => document.body.style.setProperty('--tray-h', `${$('takesSheet').offsetHeight}px`));
+  });
+}
+function closeTakes() {
+  $('takesSheet').hidden = true;
+  document.body.classList.remove('editing');
+}
+ui.takes.addEventListener('click', openTakes);
+$('hintTakes').addEventListener('click', openTakes);
+$('tkClose').addEventListener('click', closeTakes);
+$('tkList').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-do]');
+  const li = e.target.closest('.tk-item');
+  if (!b || !li) return;
+  const rec = takesCache.find((r) => r.id === li.dataset.id);
+  if (!rec) return;
+  if (b.dataset.do === 'open') {
+    closeTakes();
+    if (take?.id === rec.id) return; // already on the page
+    flushSave();
+    openProject(rec.data, { id: rec.id, createdAt: rec.createdAt });
+  } else if (b.dataset.do === 'rename') {
+    const name = window.prompt('Name this take', rec.title || '');
+    if (name === null) return;
+    rec.title = name.trim().slice(0, 80);
+    rec.data.title = rec.title;
+    if (take?.id === rec.id) take.title = rec.title;
+    await saveTake(rec);
+    renderTakes();
+  } else if (b.dataset.do === 'delete') {
+    await deleteTake(rec.id);
+    if (take?.id === rec.id) take.id = null; // still on the page, just no longer in the library
+    await renderTakes();
+    refreshTakeCount();
+    showToast(`Deleted “${rec.title || 'Untitled'}”`, async () => {
+      await saveTake(rec);
+      if (take && !take.id && take.createdAt === rec.createdAt) take.id = rec.id;
+      refreshTakeCount();
+      if (!$('takesSheet').hidden) renderTakes();
+    });
+  }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('takesSheet').hidden) closeTakes(); });
+window.addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
+refreshTakeCount();
 
 // ---------- iPhone ----------
 // Safari may hold audio until the next touch (or pause it after a call); any tap wakes it.

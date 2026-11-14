@@ -874,3 +874,34 @@ html[data-edition="ios"] .edition { display: inline-block; }
   .score-progress { flex-wrap: wrap; gap: 4px 10px; }
   .sp-bar { flex-basis: 100%; }
 }
+
+/* ---------- Phase 3: first-screen hint and saved takes ---------- */
+.empty-hint { max-width: 460px; margin: 28px auto; padding: 0 18px; color: #2b1d14; font-size: 19px; line-height: 1.4; }
+.empty-hint[hidden] { display: none; }
+.empty-hint ol { margin: 0 0 14px; padding-left: 0; list-style: none; counter-reset: step; }
+.empty-hint li { counter-increment: step; position: relative; padding: 8px 0 8px 46px; }
+.empty-hint li::before {
+  content: counter(step); position: absolute; left: 0; top: 6px;
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 19px; color: #fff6e6; background: #7a1f2b; box-shadow: 0 0 0 2px #b8892b;
+}
+.empty-hint p { margin: 0 0 8px; font-style: italic; font-size: 16px; color: #6a4f35; }
+.empty-hint .linkish { color: #7a1f2b; font-size: 16px; font-weight: 700; padding-left: 0; }
+.score[hidden], .clear-btn[hidden] { display: none; }
+
+.tk-list { list-style: none; margin: 0; padding: 0; }
+.tk-item { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px dashed color-mix(in srgb, var(--card-edge) 60%, transparent); }
+.tk-open {
+  flex: 1; min-width: 0; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+  display: flex; flex-direction: column; gap: 1px; padding: 6px 10px; min-height: 48px;
+  border-radius: 10px; border: 1px solid transparent; background: transparent;
+}
+.tk-open:hover { border-color: var(--card-edge); }
+.tk-open strong { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-open small { font-size: 13px; color: var(--text-soft); }
+.tk-item.current .tk-open { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); }
+.tk-item .mini { min-width: 40px; height: 40px; font-size: 16px; }
+@media (max-width: 480px) {
+  .empty-hint { font-size: 17px; margin: 18px auto; }
+  .head-actions .ghost { padding: 4px 9px; }
+}

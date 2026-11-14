@@ -37,7 +37,7 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - Clear moves away from Export, to the left side of the header next to the note count, and gets a quieter style.
 - After clearing, a "Cleared · Undo" message appears with an Undo button in it, so recovery is one obvious tap.
 
-## Phase 3: First run and saved takes
+## Phase 3: First run and saved takes ✅ done 2026-11-14
 
 ### 3a. First-screen guidance
 - When the manuscript is empty, it shows three short steps in place of the lone rest: tap Begin, play, tap Cease.
