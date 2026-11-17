@@ -1,10 +1,11 @@
+import { makeNotes } from './notes-post.js';
+
 // Runs Basic Pitch off the main thread, so the page never freezes,
 // even when the slow CPU mode is needed (no usable graphics chip).
 
 const BP_URL = 'https://cdn.jsdelivr.net/npm/@spotify/basic-pitch@1.0.1/+esm';
 const TF_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.19.0/+esm'; // the copy Basic Pitch uses
 const MODEL_RATE = 22050;
-const MAX_GUITAR_MIDI = 88;
 
 let bpPromise = null;
 let model = null;
@@ -54,25 +55,6 @@ async function runModel(audio, forceCpu, report) {
   return evaluate(audio, (p) => report(p, 'slow'));
 }
 
-function cleanNotes(notes) {
-  const OVERTONES = [12, 19, 24, 28];
-  return notes.filter((n) => {
-    const dur = n.end - n.start;
-    if (dur < 0.05) return false;
-    const ghost = notes.some((p) => p !== n
-      && OVERTONES.includes(n.midi - p.midi)
-      && Math.abs(p.start - n.start) < 0.06
-      && (p.end - p.start) > dur * 2
-      && n.amp < p.amp * 0.45);
-    if (ghost) return false;
-    const preEcho = dur < 0.2 && notes.some((q) => q !== n
-      && q.midi === n.midi
-      && q.start > n.start + 0.04 && q.start - n.start < 0.25
-      && (q.end - q.start) > dur);
-    return !preEcho;
-  });
-}
-
 self.onmessage = async (e) => {
   const msg = e.data;
   modelUrl = msg.modelUrl || modelUrl;
@@ -86,14 +68,9 @@ self.onmessage = async (e) => {
     const bp = await lib();
     const report = (p, mode) => self.postMessage({ type: 'progress', id, p, mode });
     const { frames, onsets, contours } = await runModel(msg.audio, msg.forceCpu, report);
-    // onset threshold, frame threshold, min note length (frames), infer onsets, max/min freq (Hz)
-    const events = bp.outputToNotesPoly(frames, onsets, 0.5, 0.3, 5, true, 1400, 60);
-    const timed = bp.noteFramesToTime(bp.addPitchBendsToNoteEvents(contours, events));
-    const notes = timed
-      .map((n) => ({ midi: n.pitchMidi, start: n.startTimeSeconds, end: n.startTimeSeconds + n.durationSeconds, amp: n.amplitude }))
-      .filter((n) => n.midi >= 28 && n.midi <= MAX_GUITAR_MIDI) // the page trims to the tuning's range
-      .sort((a, b) => a.start - b.start || a.midi - b.midi);
-    self.postMessage({ type: 'done', id, notes: cleanNotes(notes) });
+    const raw = { frames, onsets, contours, audio: msg.audio }; // the audio is only read here, then dropped with the worker's message
+    if (msg.raw) self.postMessage({ type: 'done', id, raw }); // accuracy bench: tune the clean-up without re-running the model
+    else self.postMessage({ type: 'done', id, notes: makeNotes(bp, raw) });
   } catch (err) {
     self.postMessage({ type: 'error', id, message: String(err?.message || err) });
   }

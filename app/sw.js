@@ -1,5 +1,5 @@
 // Music Scribe service worker: keeps the app working offline once loaded.
-const CACHE = 'music-scribe-m4-v8';
+const CACHE = 'music-scribe-m4-v9';
 const SHELL = [
   './vendor/vexflow.js',
   './ios/',
@@ -23,6 +23,7 @@ const SHELL = [
   './js/metronome.js',
   './js/transcribe.js',
   './js/transcribe-worker.js',
+  './js/notes-post.js',
   './js/rhythm.js',
   './js/chords.js',
   './model/model.json',

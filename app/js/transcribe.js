@@ -17,7 +17,7 @@ function getWorker() {
     const m = e.data;
     if (!current || m.id !== current.id) return;
     if (m.type === 'progress') current.onProgress(m.p, m.mode);
-    else if (m.type === 'done') { const c = current; current = null; c.resolve(m.notes); }
+    else if (m.type === 'done') { const c = current; current = null; c.resolve(m.raw || m.notes); }
     else if (m.type === 'error') { const c = current; current = null; c.reject(new Error(m.message)); }
   };
   worker.onerror = (e) => {
@@ -61,7 +61,7 @@ async function resample(samples, fromRate) {
  * Transcribe a take. Returns [{ midi, start, end, amp }] with times in seconds from the start of `samples`.
  * onProgress(0..1, mode) is called as it works; mode is 'fast' (graphics chip) or 'slow' (CPU).
  */
-export async function transcribe(samples, sampleRate, onProgress = () => {}) {
+export async function transcribe(samples, sampleRate, onProgress = () => {}, { raw = false } = {}) {
   cancelTranscription();
   onProgress(0, 'fast');
   const audio = await resample(samples, sampleRate);
@@ -69,6 +69,6 @@ export async function transcribe(samples, sampleRate, onProgress = () => {}) {
   return new Promise((resolve, reject) => {
     const id = nextId++;
     current = { id, resolve, reject, onProgress };
-    w.postMessage({ type: 'run', id, audio, modelUrl: MODEL_URL, forceCpu: FORCE_CPU }, [audio.buffer]);
+    w.postMessage({ type: 'run', id, audio, modelUrl: MODEL_URL, forceCpu: FORCE_CPU, raw }, [audio.buffer]);
   });
 }

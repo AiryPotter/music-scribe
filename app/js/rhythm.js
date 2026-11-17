@@ -4,15 +4,18 @@
 export const SLOTS_PER_BEAT = 4; // 16th-note grid
 
 /** Group notes that start together (a strum) into onset events: [{ t, w, notes }]. */
-export function onsetEvents(notes, window = 0.07) {
+export function onsetEvents(notes, window = 0.07, span = onsetEvents.span) {
   const sorted = [...notes].sort((a, b) => a.start - b.start);
   const events = [];
   for (const n of sorted) {
     const last = events[events.length - 1];
-    if (last && n.start - last.t0 < window) {
+    // a strum is a chain: each string within `window` of the one before, and the whole sweep within `span`
+    // (low strings are heard a little late, so the bass of a chord can trail the rest)
+    if (last && n.start - last.tLast < window && n.start - last.t0 < span) {
       last.notes.push(n);
+      last.tLast = n.start;
     } else {
-      events.push({ t0: n.start, notes: [n] });
+      events.push({ t0: n.start, tLast: n.start, notes: [n] });
     }
   }
   return events.map((e) => {
@@ -26,6 +29,25 @@ export function onsetEvents(notes, window = 0.07) {
     };
   });
 }
+
+/**
+ * How much an onset sounds like a strong beat. Bass notes mark downbeats on a guitar
+ * (the thumb plays them), far more than how many strings were hit.
+ */
+export function accent(e, ref = 55) {
+  const bass = Math.max(0, Math.min(1.5, (ref - lowestOf(e)) / 7)); // a fifth or more below the usual register = full weight
+  return 0.5 + 0.25 * Math.min(e.size, 4) + 1.5 * bass;
+}
+const lowestOf = (e) => Math.min(...e.notes.map((n) => n.midi));
+/** The piece's usual register: the middle value of each onset's lowest note. */
+export function registerOf(events) {
+  const v = events.map(lowestOf).sort((a, b) => a - b);
+  return v.length ? v[v.length >> 1] : 55;
+}
+function median(v) { const s = [...v].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : 0; }
+
+export const STRUM_SPAN = 0.12; // longest strum sweep (seconds)
+onsetEvents.span = STRUM_SPAN;  // (a property so the accuracy bench can compare values)
 
 const SIGMA = 0.03; // seconds of timing slop we forgive
 
@@ -55,7 +77,7 @@ export function fitTempo(events, bpm, { phaseCenter = null, phaseRange = null } 
 }
 
 /** Estimate tempo from free playing. Returns { bpm, beat0 } or null if too few notes. */
-export function estimateTempo(events, { minBpm = 60, maxBpm = 180 } = {}) {
+export function estimateTempo(events, { minBpm = 60, maxBpm = 180, halfCheck = true } = {}) {
   if (events.length < 4) return null;
   let best = null;
   const consider = (bpm) => {
@@ -67,6 +89,32 @@ export function estimateTempo(events, { minBpm = 60, maxBpm = 180 } = {}) {
   for (let bpm = minBpm; bpm <= maxBpm; bpm += 1) consider(bpm);
   const coarse = best.bpm;
   for (let bpm = coarse - 1; bpm <= coarse + 1; bpm += 0.1) consider(+bpm.toFixed(1));
+
+  // Steady eighth notes fit a grid at twice the real tempo just as well. If half the tempo also fits
+  // and its beats carry the accents (bass notes) while the off-beats don't, half is the real tempo.
+  const half = best.bpm / 2;
+  if (halfCheck && best.bpm >= 120 && half >= minBpm) {
+    const h = fitTempo(events, half);
+    const prior = Math.exp(-0.5 * (Math.log2(half / 100) / 0.6) ** 2);
+    if (h.score * (0.8 + 0.2 * prior) >= 0.85 * best.s) {
+      const eighth = 30 / half;
+      const ref = registerOf(events);
+      // a melody with no bass has no accents to go by: there, beats are about one note long, not two
+      const gaps = events.slice(1).map((e, i) => e.t - events[i].t);
+      if (gaps.length >= 4 && median(gaps) >= 1.75 * (60 / best.bpm)) return { bpm: Math.round(half), beat0: h.phase };
+      let on = 0, onN = 0, off = 0, offN = 0;
+      for (const e of events) {
+        const x = (e.t - h.phase) / eighth;
+        const n = Math.round(x);
+        if (Math.abs(x - n) * eighth > 0.05) continue;
+        if (((n % 2) + 2) % 2 === 0) { on += accent(e, ref); onN++; } else { off += accent(e, ref); offN++; }
+      }
+      if (onN && offN) {
+        const a = on / onN, z = off / offN;
+        if ((a - z) / (a + z) >= 0.1) return { bpm: Math.round(half), beat0: h.phase };
+      }
+    }
+  }
   return { bpm: Math.round(best.bpm), beat0: best.phase };
 }
 
@@ -78,13 +126,14 @@ export function phaseFor(events, bpm, near = null) {
 }
 
 /** Guess 4/4 vs 3/4 (and where bar 1 starts) from which beats get the strongest notes. */
-export function detectMeter(events, bpm, beat0, forced = null) {
+export function detectMeter(events, bpm, beat0, forced = null, { bassAccent = true } = {}) {
   const p = 60 / bpm;
   const strength = new Map();
+  const ref = registerOf(events);
   for (const e of events) {
     const b = Math.round((e.t - beat0) / p);
     if (Math.abs(e.t - (beat0 + b * p)) > p * 0.2) continue;
-    strength.set(b, (strength.get(b) || 0) + e.w * (0.6 + 0.4 * Math.min(e.size, 4)));
+    strength.set(b, (strength.get(b) || 0) + (bassAccent ? accent(e, ref) : e.w * (0.6 + 0.4 * Math.min(e.size, 4))));
   }
   const beats = [...strength.keys()];
   if (!beats.length) return { meter: forced || 4, offset: 0 };

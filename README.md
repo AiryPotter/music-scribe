@@ -65,6 +65,9 @@ Tap **Export** (next to Clear) → **Seal & send**:
 - **Keyboard:** Tab to the manuscript, ←→ to move between notes, Enter to edit one; every note has a spoken label for screen readers.
 - See `AUDIT.md` for the 2026-11-16 code audit (all nine findings fixed) and what still needs testing on real devices.
 
+## Accuracy (without a guitar yet)
+A test bench of 8 guitar-like songs (`app/dev/bench.js`) measures how well Mozart writes things out. Tuning on 2026-11-17 raised notes found right from **75% to 82%** and exactly-right notes/chords from **45% to 55%**, and the 3/4 waltz is now read correctly. Full before/after table, how to run the bench, and known weak spots: `ACCURACY.md`.
+
 ## Privacy: no audio is kept
 The only thing Music Scribe keeps is the written music. The recording lives in memory just long enough for Mozart to write out the notes, then it is discarded. It is never saved, exported, uploaded, or included in project files. There is no audio export.
 

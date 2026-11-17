@@ -47,8 +47,10 @@ function pluckBuffer(ctx, midi) {
 /**
  * Play one note or a strummed chord (lowest string first).
  * midis: [midi]; at: AudioContext time; returns the time the sound has mostly died away.
+ * voices (optional Map): like real strings, a new pluck on the same string cuts off the note
+ * that was ringing there. keys[k] names the string for the k-th lowest note (default: its pitch).
  */
-export function playPluck(ctx, midis, { at = ctx.currentTime + 0.03, strum = 0.028, volume = 0.5, dest = ctx.destination } = {}) {
+export function playPluck(ctx, midis, { at = ctx.currentTime + 0.03, strum = 0.028, volume = 0.5, dest = ctx.destination, voices = null, keys = null } = {}) {
   const sorted = [...midis].sort((a, b) => a - b);
   const level = volume / Math.sqrt(Math.max(1, sorted.length));
   let end = at;
@@ -62,6 +64,12 @@ export function playPluck(ctx, midis, { at = ctx.currentTime + 0.03, strum = 0.0
     g.gain.value = level;
     src.connect(lp).connect(g).connect(dest);
     const t = at + k * strum;
+    if (voices) {
+      const key = keys?.[k] ?? m;
+      const old = voices.get(key);
+      if (old) { old.gain.setValueAtTime(old.gain.value, t); old.gain.linearRampToValueAtTime(0, t + 0.006); }
+      voices.set(key, g);
+    }
     src.start(t);
     end = Math.max(end, t + src.buffer.duration);
   });

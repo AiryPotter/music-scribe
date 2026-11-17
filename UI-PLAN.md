@@ -58,3 +58,12 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 ## Not included
 - Phone Dropbox sign-in (waiting on the Dropbox App key).
 - Real-guitar accuracy tuning (needs your test recordings).
+
+## Phase 4: Accuracy without a guitar ✅ done 2026-11-17
+- Test bench of 8 synthetic guitar songs (`app/dev/bench.js`); results and method in `ACCURACY.md`.
+- Ringing-note de-duplication, faint-note filter, bass-led time signature, half-tempo check, chained strum grouping.
+- Overall: notes 75% → 82%, exact 45% → 55%, time signature 21/24 → 24/24. Drop D power chords got worse (see ACCURACY.md).
+
+## Next (needs a guitar)
+- Record real takes on the Pixel and iPhone, compare with the bench, re-tune thresholds.
+- Strumming patterns and repeated power chords are the weakest areas.
