@@ -14,7 +14,7 @@ import { playPluck } from './pluck.js';
 import { Player } from './player.js';
 import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
 import { createExportSheet } from './exportui.js';
-import { PROJECT_FORMAT } from './exporters.js';
+import { PROJECT_FORMAT, validateProject } from './exporters.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -252,6 +252,12 @@ function openDemo() {
 // ---------- start / stop ----------
 function clampBpm(v) { return Math.max(40, Math.min(240, Math.round(Number(v) || 100))); }
 
+// A take is held in memory while you play, so very long ones could run a phone out of memory.
+const REC_LIMIT = Math.max(20, Number(new URLSearchParams(location.search).get('limit')) || 600); // seconds (?limit= is for testing)
+const limitText = REC_LIMIT >= 120 ? `${Math.round(REC_LIMIT / 60)}-minute` : `${REC_LIMIT}-second`;
+let limitTimers = [];
+let hitLimit = false;
+
 async function start() {
   if (busy) return;
   busy = true;
@@ -330,6 +336,12 @@ async function start() {
   lastSound = ctx.currentTime;
   mozart.set('idle');
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { wakeLock = null; }
+  hitLimit = false;
+  const warnAt = Math.max(REC_LIMIT - 60, REC_LIMIT / 2);
+  limitTimers = [
+    setTimeout(() => { if (session) setStatus(`Recording · ${Math.round(REC_LIMIT - warnAt)} seconds left (${limitText} limit per take)`); }, warnAt * 1000),
+    setTimeout(() => { if (session) { hitLimit = true; stop(); } }, REC_LIMIT * 1000),
+  ];
   scheduleRender();
   loop();
 }
@@ -337,6 +349,9 @@ async function start() {
 async function stop() {
   if (!session || busy) return;
   busy = true;
+  limitTimers.forEach(clearTimeout);
+  limitTimers = [];
+  if (hitLimit) showToast(`Stopped at the ${limitText} limit. Mozart is writing out what you played.`);
   cancelAnimationFrame(raf);
   const ctx = session.ctx;
   tracker?.flush(ctx.currentTime);
@@ -392,6 +407,7 @@ ui.clear.addEventListener('click', () => {
   picker.reset();
   setStatus('Live preview');
   if (hadScore) showToast('Manuscript cleared', undo);
+  updateUndoUi();
   ui.count.textContent = '0 notes';
   scheduleRender();
 });
@@ -412,6 +428,7 @@ async function analyzeTake() {
   mozart.set('squint');
   setStatus('Mozart is writing it out…', true);
   setProgress(0);
+  updateUndoUi();
   let result = null;
   try {
     result = await transcribe(t.rec.samples, t.rec.sampleRate, (p, mode) => {
@@ -425,6 +442,7 @@ async function analyzeTake() {
   }
   t.rec = null; // the recording is thrown away here: only the written notes are kept
   if (take === t) endProgress();
+  updateUndoUi();
   if (take !== t) return; // a new take started meanwhile
   t.source = result && result.length ? 'accurate' : 'live';
   t.notes = t.source === 'accurate' ? result : t.live;
@@ -697,19 +715,24 @@ function restore(s) {
   }
   updateUndoUi();
 }
+/** True while the accurate pass is running on the take that's on the page. */
+function writing() { return !!take && !take.score && !!take.rec; }
+const WRITING_MSG = 'Mozart is still writing. Wait a moment, or tap Clear to stop him.';
 function undo() {
+  if (writing()) { showToast(WRITING_MSG); return; }
   if (session || busy || !history.past.length) return;
   history.future.push(snapshot());
   restore(history.past.pop());
 }
 function redo() {
+  if (writing()) { showToast(WRITING_MSG); return; }
   if (session || busy || !history.future.length) return;
   history.past.push(snapshot());
   restore(history.future.pop());
 }
 function updateUndoUi() {
-  ui.undo.disabled = !history.past.length || !!session;
-  ui.redo.disabled = !history.future.length || !!session;
+  ui.undo.disabled = !history.past.length || !!session || writing();
+  ui.redo.disabled = !history.future.length || !!session || writing();
 }
 ui.undo.addEventListener('click', undo);
 ui.redo.addEventListener('click', redo);
@@ -729,7 +752,8 @@ let toastTimer = 0;
 function hideToast() { clearTimeout(toastTimer); $('toast').hidden = true; }
 function showToast(text, onAction) {
   $('toastText').textContent = text;
-  $('toastBtn').onclick = () => { hideToast(); onAction(); };
+  $('toastBtn').hidden = !onAction; // a plain notice has no button
+  $('toastBtn').onclick = () => { hideToast(); onAction?.(); };
   $('toast').hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(hideToast, 8000);
@@ -1076,8 +1100,12 @@ function buildSong() {
 /** Load a .musicscribe.json project as the current take (Undo brings back what was there). */
 function openProject(data, saved = null) {
   if (session) return;
+  if (writing()) { showToast(WRITING_MSG); return; }
+  try { data = validateProject(data); } catch (err) { showToast(err.message); return; }
   flushSave();
-  if (take?.score) pushHistory();
+  const prev = take;
+  const pushed = !!take?.score;
+  if (pushed) pushHistory();
   closeEditor({ relayout: false });
   const g = data.guitar || {};
   if (g.tuning === 'custom' && Array.isArray(g.strings) && g.strings.length === 6) {
@@ -1108,7 +1136,17 @@ function openProject(data, saved = null) {
   };
   if (data.composer && !store.get('composer', '')) store.set('composer', data.composer);
   ui.bpm.value = String(Math.round(take.tempo.bpm));
-  layoutTake(take);
+  try {
+    layoutTake(take);
+  } catch (err) { // put everything back rather than leave a half-open page
+    console.warn('Could not open that project', err);
+    take = prev;
+    if (pushed) history.past.pop();
+    if (take?.score) layoutTake(take); else scheduleRender();
+    updateUndoUi();
+    showToast('That project couldn’t be opened. Nothing was changed.');
+    return;
+  }
   setStatus(`Opened “${take.title || 'project'}” · ♩=${Math.round(take.tempo.bpm)} · ${take.tempo.meter}/4`);
   updateUndoUi();
 }

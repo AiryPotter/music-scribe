@@ -1,6 +1,7 @@
 // Music Scribe service worker: keeps the app working offline once loaded.
-const CACHE = 'music-scribe-m4-v6';
+const CACHE = 'music-scribe-m4-v7';
 const SHELL = [
+  './vendor/vexflow.js',
   './ios/',
   './manifest-ios.webmanifest',
   './icons/icon-180.png',

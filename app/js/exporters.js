@@ -225,11 +225,61 @@ export const PROJECT_FORMAT = 'music-scribe-project';
 export function toProject(song) {
   return new Blob([JSON.stringify(song.project, null, 1)], { type: 'application/json' });
 }
+/**
+ * Check a project (from a file or the takes library) and return a clean copy.
+ * Throws a friendly error if anything in it would break the page.
+ */
+export function validateProject(data) {
+  const damaged = () => new Error('That project is damaged, so it wasn’t opened.');
+  if (data?.format !== PROJECT_FORMAT || !Array.isArray(data.take?.score?.events)) throw new Error('That file isn’t a Music Scribe project.');
+  if (data.version > 1) throw new Error('That project was saved by a newer Music Scribe. Reload the app to update it.');
+  const int = Number.isInteger;
+  const t = data.take.score.tempo || {};
+  const bpm = Number(t.bpm), meter = Number(t.meter);
+  if (!(bpm >= 20 && bpm <= 400) || ![2, 3, 4].includes(meter)) throw damaged();
+  if (data.take.score.events.length > 20000) throw damaged();
+  const events = data.take.score.events.map((e) => {
+    if (!e || !int(e.slot) || e.slot < 0 || !int(e.len) || e.len < 1 || !Array.isArray(e.notes) || !e.notes.length) throw damaged();
+    const seen = new Set();
+    const notes = [];
+    for (const n of e.notes) {
+      if (!n || !int(n.midi) || n.midi < 20 || n.midi > 100) throw damaged();
+      if (seen.has(n.midi)) continue;
+      seen.add(n.midi);
+      const note = { midi: n.midi };
+      if (int(n.str) && n.str >= 0 && n.str < 12) note.str = n.str;
+      notes.push(note);
+    }
+    const ev = { slot: e.slot, len: Math.min(e.len, 256), notes: notes.sort((a, b) => a.midi - b.midi).slice(0, 6) };
+    if (typeof e.chord === 'string') ev.chord = e.chord.slice(0, 20);
+    return ev;
+  }).sort((a, b) => a.slot - b.slot);
+  for (let i = 0; i < events.length - 1; i++) {
+    if (events[i].slot === events[i + 1].slot) throw damaged();
+    events[i].len = Math.min(events[i].len, events[i + 1].slot - events[i].slot); // notes never overlap
+  }
+  const num = (x) => typeof x === 'number' && Number.isFinite(x);
+  const notes = (Array.isArray(data.take.notes) ? data.take.notes : [])
+    .filter((n) => n && int(n.midi) && num(n.start) && num(n.end) && n.end > n.start)
+    .map((n) => ({ midi: n.midi, start: n.start, end: n.end, amp: num(n.amp) ? n.amp : 0.6 }));
+  const g = data.guitar || {};
+  return {
+    format: PROJECT_FORMAT,
+    version: 1,
+    title: String(data.title || '').slice(0, 80),
+    composer: String(data.composer || '').slice(0, 60),
+    guitar: { tuning: String(g.tuning || 'standard'), strings: Array.isArray(g.strings) ? g.strings.filter(int).slice(0, 6) : [], capo: Number(g.capo) || 0 },
+    take: {
+      source: String(data.take.source || 'project').slice(0, 20),
+      notes,
+      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, events },
+    },
+  };
+}
+
 /** Read a project file → the saved object (throws a friendly error if it isn't one). */
 export async function readProject(file) {
   let data;
   try { data = JSON.parse(await file.text()); } catch { throw new Error('That file isn’t a Music Scribe project.'); }
-  if (data?.format !== PROJECT_FORMAT || !data.take?.score?.events) throw new Error('That file isn’t a Music Scribe project.');
-  if (data.version > 1) throw new Error('That project was saved by a newer Music Scribe. Reload the app to update it.');
-  return data;
+  return validateProject(data);
 }
