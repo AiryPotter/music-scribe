@@ -197,6 +197,26 @@
           <button id="exportBtn" class="ghost seal-btn" type="button" disabled title="Export, share or save to Dropbox">Export</button>
         </div>
       </div>
+      <div id="practice" class="score-tools practice" hidden>
+        <button id="practiceToggle" class="guitar-toggle" type="button" aria-expanded="false"><span>Practice: 100%</span> <i aria-hidden="true">▾</i></button>
+        <label class="pr-speed">
+          <span class="ed-label">Speed</span>
+          <input id="prSpeed" type="range" min="40" max="100" step="5" value="100" aria-label="Playback speed, percent">
+          <output id="prSpeedOut">100%</output>
+        </label>
+        <div class="pr-loop" role="group" aria-label="Loop">
+          <button id="prLoop" class="ed-btn seg" type="button" aria-pressed="false" title="Repeat the bar of the selected note">⟲ Loop</button>
+          <button class="ed-btn seg" type="button" data-bars="1" aria-label="Loop 1 bar">1</button>
+          <button class="ed-btn seg" type="button" data-bars="2" aria-label="Loop 2 bars">2</button>
+          <button class="ed-btn seg" type="button" data-bars="4" aria-label="Loop 4 bars">4</button>
+          <span class="pr-unit">bars</span>
+        </div>
+        <label class="click-toggle pr-click" title="A click on every beat while playing back">
+          <input id="prClick" type="checkbox">
+          <span>Click</span>
+        </label>
+        <span id="prHint" class="pr-hint"></span>
+      </div>
       <div class="score-tools">
         <span id="scoreStatus" class="score-status">Live preview</span>
         <div class="tempo" role="group" aria-label="Tempo">

@@ -68,6 +68,13 @@ Tap **Export** (next to Clear) → **Seal & send**:
 ## Accuracy (without a guitar yet)
 A test bench of 8 guitar-like songs (`app/dev/bench.js`) measures how well Mozart writes things out. Tuning on 2026-11-17 raised notes found right from **75% to 82%** and exactly-right notes/chords from **45% to 55%**, and the 3/4 waltz is now read correctly. Full before/after table, how to run the bench, and known weak spots: `ACCURACY.md`.
 
+## Practice playback
+A **Practice** row appears under the manuscript header when there's music (on phones it folds into one "Practice" button):
+- **Speed** slider, 40–100% (in 5% steps), for learning something slowly
+- **Loop**: tap a note, turn Loop on, and its bar repeats; choose **1, 2 or 4 bars**
+- **Click**: a tick on every beat while playing back, accented on beat 1
+Changing any of these while music plays carries on from the same note. Speed, Click and the bar count are remembered.
+
 ## Mozart's mistakes (fix log)
 The **Fixes** button (manuscript header) shows what you've corrected: wrong extra notes, missed notes, wrong pitch (with how far off), wrong length, notes written as two or joined, wrong tempo (halved/doubled) or time signature, string choice and chord names. Every fix in the note editor is counted automatically; Undo takes it back out; ▲▲ on one note counts as one fix. **Save log** makes a small .json file (counts and note numbers only: no audio, no song titles) you can share for re-tuning; **Clear log** has an Undo. Kept in this browser on this device.
 

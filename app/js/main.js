@@ -497,6 +497,7 @@ function requantize(t) {
 function layoutTake(t, { quiet = false } = {}) {
   stopPlayback();
   resumeFrom = null;
+  if (practice.loopAt && t.score && practice.loopAt.start >= (t.model?.measures.length ?? 1e9) * t.score.tempo.meter * SLOTS_PER_BEAT) practice.loopAt = null;
   const { events, tempo } = t.score;
   const meter = tempo.meter;
   const barSlots = meter * SLOTS_PER_BEAT;
@@ -644,6 +645,7 @@ function scheduleRender() {
     if (empty) {
       ui.exportBtn.disabled = true;
       ui.play.disabled = true;
+      $('practice').hidden = true;
       return;
     }
     const focusRef = ui.score.contains(document.activeElement) ? document.activeElement.dataset?.ref : null;
@@ -663,6 +665,7 @@ function scheduleRender() {
     if (session) page.scrollTop = page.scrollHeight;
     ui.exportBtn.disabled = !(take?.model && !session);
     ui.play.disabled = ui.exportBtn.disabled;
+    $('practice').hidden = ui.play.disabled;
     if (player.playing) showPlayhead(player.shown);
     if (sel && !ui.ed.hidden) requestAnimationFrame(() => keepSelVisible(page));
   }, 120);
@@ -798,6 +801,75 @@ function setMore(open) {
 $('edMoreBtn').addEventListener('click', () => setMore($('edMore').hidden));
 setMore(store.get('edMore', '0') === '1');
 
+// ---------- practice options: speed, loop, click (playback only) ----------
+const practice = {
+  speed: Math.max(40, Math.min(100, Number(store.get('prSpeed', '100')) || 100)),
+  click: store.get('prClick', '0') === '1',
+  bars: [1, 2, 4].includes(Number(store.get('prBars', '1'))) ? Number(store.get('prBars', '1')) : 1,
+  loop: false,
+  loopAt: null, // { start, end } in slots, chosen when Loop is turned on or Play is pressed
+};
+function loopRange(fromSlot) {
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
+  const start = Math.floor(fromSlot / barSlots) * barSlots;
+  return { start, end: start + practice.bars * barSlots, barSlots };
+}
+function syncPractice() {
+  $('prSpeed').value = String(practice.speed);
+  $('prSpeedOut').textContent = `${practice.speed}%`;
+  $('prClick').checked = practice.click;
+  $('prLoop').setAttribute('aria-pressed', String(practice.loop));
+  $('prLoop').classList.toggle('on', practice.loop);
+  $('practice').querySelectorAll('[data-bars]').forEach((b) => b.classList.toggle('on', Number(b.dataset.bars) === practice.bars));
+  let hint = '';
+  if (practice.loop && practice.loopAt && take?.score) {
+    const bs = take.score.tempo.meter * SLOTS_PER_BEAT;
+    const a = practice.loopAt.start / bs + 1, b = practice.loopAt.end / bs;
+    hint = a === b ? `Looping bar ${a}` : `Looping bars ${a}–${b}`;
+  } else if (practice.loop) hint = 'Tap a note to choose where the loop starts';
+  $('prHint').textContent = hint;
+  const parts = [`${practice.speed}%`];
+  if (practice.loop) parts.push(`Loop ${practice.bars} bar${practice.bars === 1 ? '' : 's'}`);
+  if (practice.click) parts.push('Click');
+  $('practiceToggle').querySelector('span').textContent = `Practice: ${parts.join(' · ')}`;
+}
+/** Change a practice setting; if music is playing, carry on from the same note with the new setting. */
+function changePractice(fn) {
+  fn();
+  syncPractice();
+  if (player.playing) {
+    const at = player.position;
+    stopPlayback();
+    resumeFrom = at;
+    togglePlay();
+  }
+}
+$('prSpeed').addEventListener('input', () => { practice.speed = Number($('prSpeed').value); $('prSpeedOut').textContent = `${practice.speed}%`; });
+$('prSpeed').addEventListener('change', () => changePractice(() => store.set('prSpeed', String(practice.speed))));
+$('prClick').addEventListener('change', () => changePractice(() => { practice.click = $('prClick').checked; store.set('prClick', practice.click ? '1' : '0'); }));
+$('prLoop').addEventListener('click', () => changePractice(() => {
+  practice.loop = !practice.loop;
+  if (practice.loop && take?.score) {
+    const fromSlot = sel?.kind === 'ev' ? take.score.events[sel.idx].slot : sel?.kind === 'rest' ? sel.at
+      : player.playing ? take.score.events[player.position].slot : practice.loopAt?.start ?? 0;
+    practice.loopAt = loopRange(fromSlot);
+  }
+}));
+$('practice').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-bars]');
+  if (!b) return;
+  changePractice(() => {
+    practice.bars = Number(b.dataset.bars);
+    store.set('prBars', String(practice.bars));
+    if (practice.loopAt && take?.score) practice.loopAt = loopRange(practice.loopAt.start);
+  });
+});
+$('practiceToggle').addEventListener('click', () => {
+  const open = $('practice').classList.toggle('open');
+  $('practiceToggle').setAttribute('aria-expanded', String(open));
+});
+syncPractice();
+
 // ---------- playback (plays the written notes, never a recording) ----------
 let resumeFrom = null; // event index to continue from after Pause
 let lastPlayhead = null;
@@ -839,12 +911,15 @@ function togglePlay() {
   let from = resumeFrom ?? 0;
   if (sel?.kind === 'ev') from = sel.idx;
   else if (sel?.kind === 'rest') from = Math.max(0, events.findIndex((e) => e.slot >= sel.at));
+  if (practice.loop && (sel || !practice.loopAt)) { practice.loopAt = loopRange(events[from].slot); syncPractice(); }
+  const loop = practice.loop && practice.loopAt ? { start: practice.loopAt.start, end: practice.loopAt.end } : null;
+  if (loop && !(events[from].slot >= loop.start && events[from].slot < loop.end)) from = Math.max(0, events.findIndex((e) => e.slot >= loop.start));
   if (sel) closeEditor(); // (redraws, which also clears resumeFrom)
   if (exportSheet.isOpen) exportSheet.close();
   setAudioSession('playback');
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   wake(earCtx);
-  player.start(earCtx, events, take.score.tempo.bpm, from);
+  player.start(earCtx, events, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, loop });
   ui.play.textContent = '❚❚';
   ui.play.setAttribute('aria-label', 'Pause');
   ui.play.classList.add('on');

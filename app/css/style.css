@@ -940,3 +940,22 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .head-actions .ghost { white-space: nowrap; }
 @media (max-width: 480px) { .head-actions { flex-wrap: wrap; justify-content: flex-end; } }
+
+/* ---------- practice options (playback speed, loop, click) ---------- */
+.practice { gap: 6px 14px; padding: 2px 0 4px; }
+.practice[hidden] { display: none; }
+.pr-speed { display: inline-flex; align-items: center; gap: 8px; flex: 1 1 200px; min-width: 0; }
+.pr-speed input[type="range"] { flex: 1; min-width: 90px; }
+.pr-speed output { min-width: 44px; font-weight: 700; text-align: right; }
+.pr-loop { display: inline-flex; align-items: center; gap: 4px; }
+.pr-loop .ed-btn.seg { min-width: 38px; }
+.pr-unit { font-size: 13px; color: var(--text-soft); margin-left: 2px; }
+.pr-click { font-size: 15px; }
+.pr-hint { flex-basis: 100%; font-size: 13px; font-style: italic; color: var(--text-soft); min-height: 0; }
+.pr-hint:empty { display: none; }
+@media (max-width: 480px) {
+  .practice:not(.open) > :not(.guitar-toggle) { display: none; }
+  .practice.open .guitar-toggle { flex-basis: 100%; justify-content: space-between; }
+  .practice.open .guitar-toggle i { transform: rotate(180deg); }
+  .pr-speed { flex-basis: 100%; }
+}
