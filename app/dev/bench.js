@@ -144,6 +144,10 @@ export async function render(song, opts = {}) {
     playPluck(oc, midis, { at, strum, volume, dest: body, voices, keys });
     [...midis].sort((a, b) => a - b).forEach((m, k) => truth.push({ midi: m, start: at + k * strum, beat, len }));
   }
+  // finger-lift noise: quiet open strings / scratches right as notes are released (not in the truth)
+  for (const [beat, midi, level] of song.ghosts || []) {
+    playPluck(oc, [midi], { at: lead + beat * p + gauss() * 0.01, strum: 0, volume: level, dest: body });
+  }
   } finally { Math.random = realRandom; }
   const buf = await oc.startRendering();
   const samples = buf.getChannelData(0).slice();
@@ -261,7 +265,7 @@ export async function run(opts = {}) {
 export async function notesFor(name, opts = {}) {
   const song = SONGS.find((s) => s.name === name);
   await runSong(song, opts);
-  const r = rawCache.get(`${song.name}|${opts.seed ?? 7}`);
+  const r = rawCache.get(`${song.name}|${opts.seed ?? 7}|${opts.click ? JSON.stringify(opts.click) : ''}`);
   const bp = await import(BP_URL);
   return { song, truth: r.truth, lead: r.lead, notes: makeNotes(bp, r.raw, opts.params), raw: r.raw, bp };
 }

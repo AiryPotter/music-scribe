@@ -180,8 +180,8 @@ function pickLen(pos, room, barSlots) {
  * [{ slot, len, keys: [midi] }] (slots are 16ths from the start of bar 1; events never overlap).
  * tempo = { bpm, beat0, meter, offset } (offset = which beat is the downbeat).
  */
-export function quantize(notes, tempo, { simple = false } = {}) {
-  if (simple) return quantizeSimple(notes, tempo);
+export function quantize(notes, tempo, { simple = false, openStrings = [], releaseFilter = true } = {}) {
+  if (simple) return quantizeSimple(releaseFilter ? dropReleaseNoise(notes, openStrings) : notes, tempo);
   const { bpm, beat0, meter } = tempo;
   const p = 60 / bpm;
   const slotDur = p / SLOTS_PER_BEAT;
@@ -217,6 +217,37 @@ export function quantize(notes, tempo, { simple = false } = {}) {
     return { slot: ev.slot, len: end - ev.slot, keys };
   });
   return { events, barStart };
+}
+
+/**
+ * Lifting a finger off a fretted string makes noise the mic hears as notes: the open string
+ * sounding for a moment, a short scratch, or the same note "starting again" as it's released.
+ * They all begin just as a louder note ends. This drops them (and merges a quieter repeat of
+ * the same note into the note it came from). Used by Simple detail.
+ */
+export function dropReleaseNoise(notes, openStrings = [], { window = 0.8 } = {}) {
+  const opens = new Set(openStrings);
+  const sorted = [...notes].sort((a, b) => a.start - b.start).map((n) => ({ ...n }));
+  const amp = (n) => n.amp ?? 0.6;
+  const out = [];
+  // a note that starts together with a different note (or with a lower octave, as in a power chord;
+  // an overtone above doesn't count) is part of a chord or strum, never finger-lift noise
+  const inChord = (n) => sorted.some((o) => o !== n && Math.abs(o.start - n.start) < 0.06 && ((o.midi - n.midi) % 12 !== 0 || o.midi < n.midi));
+  for (const n of sorted) {
+    if (inChord(n)) { out.push(n); continue; }
+    // the note played just before (the transcriber often ends a note early, as it fades, so the
+    // finger lifting off can come a good half-second after the note's recorded end)
+    const parent = [...out].reverse().find((p) => p.start < n.start - 0.02);
+    const gap = parent ? n.start - parent.end : Infinity;
+    if (parent && gap >= -0.1 && gap <= window && amp(parent) > amp(n)) {
+      const ratio = amp(n) / amp(parent);
+      if (n.midi === parent.midi && ratio < 0.85 && gap <= 0.15) { parent.end = Math.max(parent.end, n.end); continue; } // same note ringing on
+      if (opens.has(n.midi) && n.midi !== parent.midi && ratio < 0.86) continue;                                     // open string as the finger lifts
+      if (ratio < 0.65 && n.end - n.start < 0.25) continue;                                                          // a short scratch
+    }
+    out.push(n);
+  }
+  return out;
 }
 
 /**

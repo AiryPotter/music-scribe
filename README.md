@@ -74,6 +74,7 @@ Music Scribe is for catching ideas while you practise, so the default is **Simpl
 - A long pause doesn't fill bars with rests: the next phrase just starts on the next bar.
 - A string still ringing from the note before, and the faint overtones above a note, aren't written as extra notes. Only a real strum (three or more strings sounding loud together) becomes a chord.
 - Very quick notes still get their own place (a 16th note if there's no room for an 8th).
+- **Finger-lift noise is filtered out.** Lifting a finger off a string often makes the open string sound faintly, or a short scratch. A quieter open-string note (or a short, much quieter note) right after the note you were holding isn't written. Notes in a chord or strum are never touched, and a real open string you pluck as loud as the notes around it stays. (Test take: a chromatic scale up and down the E and B strings went from 32 wrong notes to 7, with no real notes lost; the 8 bench songs lost no real notes.)
 **Detailed** keeps every note and rest on a 16th-note grid. Switching re-writes the take (Undo brings the other version back).
 
 ## Downloads

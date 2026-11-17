@@ -528,7 +528,7 @@ function computeTempo(t, { keepBpm = false } = {}) {
 /** Snap the take's notes to the grid → the editable score (throws away edits; callers push history first). */
 function requantize(t) {
   const keep = t.score?.key?.manual ? t.score.key : null;
-  const q = quantize(t.notes, t.tempo, { simple: ui.detailSel.value !== 'detailed' });
+  const q = quantize(t.notes, t.tempo, { simple: ui.detailSel.value !== 'detailed', openStrings: tuningStrings().map((m) => m + guitar.capo) });
   t.score = {
     tempo: { ...t.tempo },
     events: q.events.map((e) => ({ slot: e.slot, len: e.len, notes: e.keys.map((midi) => ({ midi })) })),

@@ -68,3 +68,20 @@ After a real practice session (scales up and down) produced 10 messy PDF pages, 
 | PDF pages | — | **1** |
 
 Both scale runs come out note for note apart from 4 small extras. The demo song is unchanged in Simple, except the doubled top G of the G chord is left out.
+
+## Finger-lift noise (2026-11-17)
+A real take (a scale up and down the E and B strings, metronome on, tuned first) showed random notes where a finger lifted off a string: the open string rings faintly, or the string scratches. `dropReleaseNoise` in `app/js/rhythm.js` (Simple mode only) now drops:
+- a quieter open-string note (under 86% of the loudness of the note before) that starts within 0.8 s of that note's written end (Basic Pitch often ends a fading note early, so the lift can come well after);
+- a short (< 0.25 s), much quieter (< 65%) note in the same place;
+- and merges a same-pitch, quieter re-start straight after a note into it.
+Any note that starts together with another note (a chord or strum; a lower octave counts, an overtone above doesn't) is never touched.
+
+Synthetic test: chromatic run up/down the high E and B strings, 50 notes, plus 34 quiet open-string ghosts at the finger lifts.
+
+| | Before | After |
+|---|---|---|
+| Notes written | 81 | 57 |
+| Wrong extra notes | 32 | **7** |
+| Real notes missed | 1 | **0** |
+
+Across the 8 bench songs the filter removed **0 real notes** (it first removed 11 chord notes from the demo and one Drop D power-chord note, which is why the chord rule exists). `notesFor` in the bench also had a cache-key bug, now fixed. The remaining extras are ghosts nearly as loud as the real note (over 86%); a real recording's fix log will show whether that threshold should go lower.
