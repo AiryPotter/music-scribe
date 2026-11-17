@@ -1,6 +1,6 @@
 # Music Scribe audit, 2026-11-16
 
-Audited commit `38a38d4`. **Findings 1 to 4 were fixed on 2026-11-16** (see "Fixed" below); 5 to 9 are still open. "Confirmed" means reproduced in the browser with the demo song; "by reading" means found in the code but not run.
+Audited commit `38a38d4`. **Findings 1 to 4 were fixed on 2026-11-16** (see "Fixed" below), and **findings 5 to 9 later the same day**. All nine are closed. "Confirmed" means reproduced in the browser with the demo song; "by reading" means found in the code but not run.
 
 ## Findings, worst first
 
@@ -21,6 +21,13 @@ Audited commit `38a38d4`. **Findings 1 to 4 were fixed on 2026-11-16** (see "Fix
 2. **Offline notation:** VexFlow 4.2.5 now ships inside the app (`app/vendor/vexflow.js`, checked against the published hash) and is in the offline cache list. The font stylesheet is now cacheable too. Tested: the page makes no CDN request for it. Not tested: a real offline launch (service workers don't run in the test browser).
 3. **Recording limit:** a take stops by itself at 10 minutes, with a warning in the status line one minute before, then Mozart writes out what was played. Tested with a 20-second test limit (`?limit=20`).
 4. **Damaged project files:** every note, the tempo and the time signature are checked before opening (files and library takes). A bad one shows "That project is damaged, so it wasn't opened." and the page is left untouched. Tested with four kinds of damage; good files and library takes still open.
+
+## Fixed on 2026-11-16 (findings 5 to 9)
+5. **Keyboard and screen readers:** every note, chord and rest is a labelled button ("Bar 2, beat 1: C chord, C3, E3, G3, C4, E4, half note"). Tab reaches the manuscript (one tab stop), ←→ move between notes, Enter or Space opens the editor, and focus stays on the note through edits and redraws. Buttons, pickers and text boxes show a gold focus ring. Tested with keyboard events; not tested with a real screen reader.
+6. **Duplicate library entries:** project files now carry the take's id, so opening the same file again updates its library entry. Files exported before this fix have no id and still add a new entry.
+7. **Phone buttons:** all buttons and pickers on the page, the export sheet and the takes list are at least 44 px tall at phone width. The note editor's buttons stay at 40 px on purpose so the tray stays compact (31% of the screen for a single note at 375 × 812, 42% for a five-note chord).
+8. **Deleting the open take:** the message now says "It's still on the page, but changes won't be saved", with Undo. Messages wrap on narrow screens.
+9. **Space** no longer starts playback while the Takes list is open.
 
 ## The no-audio rule: passes
 

@@ -266,6 +266,7 @@ export function validateProject(data) {
   return {
     format: PROJECT_FORMAT,
     version: 1,
+    id: typeof data.id === 'string' && /^[\w-]{8,64}$/.test(data.id) ? data.id : undefined,
     title: String(data.title || '').slice(0, 80),
     composer: String(data.composer || '').slice(0, 60),
     guitar: { tuning: String(g.tuning || 'standard'), strings: Array.isArray(g.strings) ? g.strings.filter(int).slice(0, 6) : [], capo: Number(g.capo) || 0 },

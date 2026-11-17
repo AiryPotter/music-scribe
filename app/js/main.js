@@ -525,7 +525,7 @@ function layoutTake(t, { quiet = false } = {}) {
   const measures = bars.map((bar) => bar.map((p) => {
     if (p.rest) {
       const ref = t.refs.push({ kind: 'rest', at: p.restAt, len: p.restLen }) - 1;
-      return { slots: p.slots, rest: true, ref, sel: isSel(p) };
+      return { slots: p.slots, rest: true, ref, sel: isSel(p), label: `${whereLabel(p.at)}: rest` };
     }
     if (!evRef.has(p.evIdx)) evRef.set(p.evIdx, t.refs.push({ kind: 'ev', idx: p.evIdx }) - 1);
     const pl = t.placed[p.evIdx];
@@ -541,12 +541,13 @@ function layoutTake(t, { quiet = false } = {}) {
       sel: selected,
       focus: selected ? sel.focus : undefined,
       at: p.at,
+      label: p.tieFromPrev ? '' : pieceLabel(events[p.evIdx], pl),
     };
   }));
   t.pieceStarts = new Map(); // evIdx → slots where each written piece starts (for Untie)
   bars.flat().forEach((p) => { if (!p.rest) (t.pieceStarts.get(p.evIdx) || t.pieceStarts.set(p.evIdx, []).get(p.evIdx)).push(p.at); });
 
-  t.model = { measures, meter, header: scoreHeader() };
+  t.model = { measures, meter, header: scoreHeader(), label: `Manuscript${t.title ? `: ${t.title}` : ''}, ${measures.length} bar${measures.length === 1 ? '' : 's'}, ${meter}/4 at ${Math.round(tempo.bpm)} beats per minute. Use the arrow keys to move between notes.` };
   layoutVersion++;
   const noteCount = events.reduce((s, ev) => s + ev.notes.length, 0);
   ui.count.textContent = `${noteCount} note${noteCount === 1 ? '' : 's'}`;
@@ -639,6 +640,7 @@ function scheduleRender() {
       ui.play.disabled = true;
       return;
     }
+    const focusRef = ui.score.contains(document.activeElement) ? document.activeElement.dataset?.ref : null;
     if (take?.model && !session) {
       renderScore(ui.score, take.model);
     } else {
@@ -646,6 +648,10 @@ function scheduleRender() {
       m.header = scoreHeader();
       renderScore(ui.score, m);
       ui.count.textContent = `${notes.length} note${notes.length === 1 ? '' : 's'}`;
+    }
+    if (focusRef != null) {
+      const again = (sel && ui.score.querySelector('.hit[tabindex="0"]')) || ui.score.querySelector(`.hit[role="button"][data-ref="${focusRef}"]`);
+      if (again) { ui.score.querySelectorAll('.hit[tabindex="0"]').forEach((h) => h.setAttribute('tabindex', '-1')); again.setAttribute('tabindex', '0'); again.focus({ preventScroll: true }); }
     }
     const page = ui.score.parentElement;
     if (session) page.scrollTop = page.scrollHeight;
@@ -844,6 +850,13 @@ ui.guitarToggle.addEventListener('click', () => {
 
 // ---------- the note editor (tap a note or rest) ----------
 const lenName = (slots) => E.LENGTHS.find(([s]) => s === slots)?.[1] ?? `${slots / 4} beats`;
+/** Spoken description of a note or chord, for screen readers. */
+function pieceLabel(ev, pl) {
+  const len = lenName(ev.len);
+  const chord = pl.show || pl.auto;
+  const names = ev.notes.map((n) => noteName(n.midi)).join(', ');
+  return `${whereLabel(ev.slot)}: ${chord ? `${chord} chord, ` : ''}${names}, ${len}${/beat/.test(len) ? '' : ' note'}`;
+}
 function whereLabel(slot) {
   const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
   const inBar = slot % barSlots;
@@ -992,6 +1005,27 @@ ui.score.addEventListener('click', (e) => {
   if (!r || !take?.refs || session) return;
   select(take.refs[Number(r.dataset.ref)]);
 });
+// keyboard access to the manuscript: Tab reaches it, ←→ move between notes, Enter/Space opens the editor
+ui.score.addEventListener('keydown', (e) => {
+  const hit = e.target.closest?.('.hit');
+  if (!hit || !take?.refs || session) return;
+  const ref = Number(hit.dataset.ref);
+  if (e.key === 'Enter' || e.key === ' ') {
+    const r = take.refs[ref];
+    const already = sel && (r.kind === 'ev' ? sel.kind === 'ev' && sel.idx === r.idx : sel.kind === 'rest' && sel.at === r.at);
+    if (already) return; // the editor's own keys take over
+    e.preventDefault();
+    e.stopPropagation();
+    select(r);
+  } else if (!sel && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+    const next = ui.score.querySelector(`.hit[role="button"][data-ref="${ref + (e.key === 'ArrowRight' ? 1 : -1)}"]`);
+    if (!next) return;
+    e.preventDefault();
+    hit.setAttribute('tabindex', '-1');
+    next.setAttribute('tabindex', '0');
+    next.focus();
+  }
+});
 ui.edPrev.addEventListener('click', () => nav(-1));
 ui.edNext.addEventListener('click', () => nav(1));
 ui.edClose.addEventListener('click', () => closeEditor());
@@ -1052,7 +1086,7 @@ document.addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
   if (mod && !typing && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); return; }
   if (mod && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
-  if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
+  if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && $('takesSheet').hidden && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
   if (!sel || typing || mod || e.altKey) return;
   if (e.key === 'Enter' && (e.target.tagName === 'BUTTON' || sel.kind !== 'rest')) return;
   const keys = {
@@ -1088,6 +1122,7 @@ function buildSong() {
       format: PROJECT_FORMAT,
       version: 1,
       app: 'Music Scribe',
+      id: t.id || undefined, // lets the library recognise this take if the file is opened again
       savedAt: new Date().toISOString(),
       title: t.title || '',
       composer: store.get('composer', ''),
@@ -1131,7 +1166,7 @@ function openProject(data, saved = null) {
     tempo: { ...data.take.score.tempo },
     title: data.title || '',
     edited: false,
-    id: saved?.id || newTakeId(),            // from the library, or a new entry for an opened file
+    id: saved?.id || data.id || newTakeId(), // library entry, the id stored in the file, or a new entry
     createdAt: saved?.createdAt || Date.now(),
   };
   if (data.composer && !store.get('composer', '')) store.set('composer', data.composer);
@@ -1269,7 +1304,10 @@ $('tkList').addEventListener('click', async (e) => {
     if (take?.id === rec.id) take.id = null; // still on the page, just no longer in the library
     await renderTakes();
     refreshTakeCount();
-    showToast(`Deleted “${rec.title || 'Untitled'}”`, async () => {
+    const wasOpen = !!take && !take.id && take.createdAt === rec.createdAt;
+    showToast(wasOpen
+      ? `Deleted “${rec.title || 'Untitled'}” from the library. It’s still on the page, but changes won’t be saved.`
+      : `Deleted “${rec.title || 'Untitled'}”`, async () => {
       await saveTake(rec);
       if (take && !take.id && take.createdAt === rec.createdAt) take.id = rec.id;
       refreshTakeCount();

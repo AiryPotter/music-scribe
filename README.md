@@ -62,7 +62,8 @@ Tap **Export** (next to Clear) → **Seal & send**:
 - **Take length:** a take stops by itself at 10 minutes (a warning appears one minute before), because the take is held in memory while you play.
 - **Offline:** the notation engine ships inside the app (`app/vendor/vexflow.js`, VexFlow 4.2.5, MIT licence), so the manuscript draws offline. The accurate pass needs one online use first to fetch Basic Pitch.
 - **Project files** are checked before opening; a damaged one is refused and nothing changes.
-- See `AUDIT.md` for the 2026-11-16 code audit and what is still open.
+- **Keyboard:** Tab to the manuscript, ←→ to move between notes, Enter to edit one; every note has a spoken label for screen readers.
+- See `AUDIT.md` for the 2026-11-16 code audit (all nine findings fixed) and what still needs testing on real devices.
 
 ## Privacy: no audio is kept
 The only thing Music Scribe keeps is the written music. The recording lives in memory just long enough for Mozart to write out the notes, then it is discarded. It is never saved, exported, uploaded, or included in project files. There is no audio export.

@@ -208,7 +208,7 @@ export function renderScore(el, model, opts = {}) {
         if (p.ref === undefined || centers[j] === null) return;
         const x0 = j === 0 ? leftEdge : (centers[j - 1] + centers[j]) / 2;
         const x1 = j === cell.m.length - 1 ? rightEdge : (centers[j] + centers[j + 1]) / 2;
-        const hit = { x0, x1, y0: y - 6, y1: y + ROW_H - 18, ref: p.ref };
+        const hit = { x0, x1, y0: y - 6, y1: y + ROW_H - 18, ref: p.ref, label: p.label, sel: !!p.sel };
         hits.push(hit);
         if (p.sel) bands.push(hit);
       });
@@ -244,13 +244,30 @@ export function renderScore(el, model, opts = {}) {
     r.setAttribute('class', 'sel-band');
     svg.insertBefore(r, svg.firstChild);
   }
+  // keyboard + screen readers: one labelled, focusable target per note (roving tabindex)
+  const labelled = new Set();
+  let hasTabStop = false;
   for (const h of hits) {
     const r = document.createElementNS(SVG_NS, 'rect');
     r.setAttribute('x', h.x0); r.setAttribute('y', h.y0);
     r.setAttribute('width', Math.max(4, h.x1 - h.x0)); r.setAttribute('height', h.y1 - h.y0);
     r.setAttribute('class', 'hit');
     r.dataset.ref = String(h.ref);
+    if (h.label && !labelled.has(h.ref)) {
+      labelled.add(h.ref);
+      r.setAttribute('role', 'button');
+      r.setAttribute('aria-label', h.label);
+      r.setAttribute('tabindex', h.sel && !hasTabStop ? '0' : '-1');
+      if (h.sel) hasTabStop = true;
+    } else {
+      r.setAttribute('aria-hidden', 'true'); // tied continuation, or a preview note
+    }
     svg.appendChild(r);
+  }
+  if (labelled.size) {
+    if (!hasTabStop) svg.querySelector('.hit[role="button"]')?.setAttribute('tabindex', '0');
+    svg.setAttribute('role', 'group');
+    svg.setAttribute('aria-label', model.label || 'Manuscript');
   }
   return info;
 }

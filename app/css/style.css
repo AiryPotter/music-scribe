@@ -905,3 +905,23 @@ html[data-edition="ios"] .edition { display: inline-block; }
   .empty-hint { font-size: 17px; margin: 18px auto; }
   .head-actions .ghost { padding: 4px 9px; }
 }
+
+/* ---------- audit fixes: keyboard focus, wrapping messages, 44px phone buttons ---------- */
+.score .hit:focus { outline: none; }
+.score .hit:focus-visible { fill: rgba(122, 31, 43, .10); stroke: #7a1f2b; stroke-width: 2; }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.toast { white-space: normal; max-width: calc(100vw - 24px); width: max-content; border-radius: 22px; line-height: 1.3; }
+@media (max-width: 480px) {
+  .mini, .mini.icon, .zoom button { min-width: 44px; height: 44px; min-height: 44px; }
+  .tip-btn { width: 44px; height: 44px; }
+  .ed-btn, .ed-btn.seg, .ed-chip, .clear-btn, .linkish, .guitar-toggle, .click-toggle,
+  .head-actions .ghost, .ex-format, .tk-open { min-height: 44px; }
+  .tempo input, .ed-chord, .ex-credits input, .ex-paste input,
+  select, .meter-pick select, .custom-tuning select { min-height: 44px; }
+  .tk-item .mini { min-width: 44px; height: 44px; }
+  /* the note editor keeps 40px buttons so the tray stays about a third of the screen */
+  #editor .ed-btn { min-height: 40px; }
+  #editor .ed-chip { min-height: 40px; }
+  #editor .ed-head .mini { min-width: 40px; height: 40px; min-height: 40px; }
+  .score-tools { gap: 6px 8px; }
+}
