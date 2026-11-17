@@ -109,3 +109,24 @@ New bench takes (`LIFT_SONGS`, run `ghostReport()` in `app/dev/bench.js`), Simpl
 Real notes removed across the 8 bench songs: **0** (strums, waltz chords, Drop D power chords, fingerpicking all intact). Detailed mode isn't affected (bench summary 83% note score / 54% exact on one seed, in line with the 3-seed 82% / 55%).
 
 Still left: a ghost overtone that comes in a moment after the ghost (written as a 2-note stack), and a ghost that is the very last sound of the take while the note before still rings. Both are a single tap to fix. Tuning further needs a real take: after the next recording, **Fixes → Save log** shows which extras remain.
+
+## One string, in order (2026-11-17, third pass)
+Real take: the low E climbed fret 1 → ~19 with the click on. The PDF's tab read 1 2 **4 (D string)** 3 … 9 **D5 chord** then 6 7 8 … on the A and D strings, "out of order". Three causes:
+- an octave of fret 2 sounding again, written as its own note;
+- a quieter A ringing along with fret 10, written as a "D5" chord;
+- that chord dragged the tab picker's hand position down the neck, so the rest of the run was placed on other strings.
+
+Fixes:
+- **Intention scale**: new clues. *echo* (an overtone of the note just played) adds support; a leap away and back inside a *smooth run* (fret after fret on both sides) counts more; *sympathy*: a quieter stray note far from the run that sounds with the run's next fret is not a chord.
+- **Simple mode overtones**: three octaves (36 semitones) added, and overtones of a string still ringing from the previous note are dropped too.
+- **Tab picker** (`FretPicker` in `guitar.js`): a run of 3+ notes, one fret apart on one string, carries on along that string; an open string or a stray note stacked with the next fret doesn't break it.
+
+Bench take `Low E climb 1-19 (one string)` (octave ghost after fret 2, sympathetic A with fret 10, one open-E lift ghost), Simple mode:
+
+| | Before | After |
+|---|---|---|
+| Tab | E1 E2 **D4 D4** E3 … E6+? E0 **A2+e4 A3 A4 D0+G2 D1 … D9** | **E1 E2 E3 … E19** (one E0 ghost left) |
+| Wrong notes | 6 | 1 |
+| Missed | 0 | 0 |
+
+Every other bench song's tab is unchanged (Simple and Detailed), no real notes are removed, and the pedal/riff guards are untouched.

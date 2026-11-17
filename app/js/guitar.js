@@ -64,6 +64,7 @@ export class FretPicker {
 
   reset() {
     this.hand = 2; // start near open position
+    this.run = null; // the single-note run being played up or down one string: { stringIndex, midi, dir, steps }
   }
 
   /** Fret for a note on a string (from the capo), or null if it can't be played there. */
@@ -97,6 +98,14 @@ export class FretPicker {
   pickChord(midis, locks = []) {
     const notes = [...new Set(midis)].sort((a, b) => a - b);
     if (notes.length === 1) return [{ midi: notes[0], pos: this.pick(notes[0], locks[0]) }];
+    // a note that carries on a run up/down one string stays on that string, even inside a chord
+    const r = this.run;
+    let runNote = -1;
+    if (r && r.steps >= 3 && notes.length === 2) { // one stray note sounding with the run's next fret
+      runNote = notes.findIndex((m, k) => (locks[k] === undefined || locks[k] === null) && Math.abs(m - r.midi) >= 1 && Math.abs(m - r.midi) <= 2
+        && Math.sign(m - r.midi) === r.dir && this.fretOn(m, r.stringIndex) > 0);
+      if (runNote >= 0) { locks = [...locks]; locks[runNote] = r.stringIndex; }
+    }
     const S = this.strings.length;
     const use = notes.slice(0, S); // a guitar has six strings
     const cands = use.map((m, k) => {
@@ -130,6 +139,8 @@ export class FretPicker {
     };
     rec(0);
     if (best && best.avg > 0) this.hand = Math.round(this.hand * 0.4 + best.avg * 0.6);
+    if (runNote >= 0 && best?.assign.some((c) => !c)) { locks[runNote] = undefined; this.run = null; return this.pickChord(midis, locks); } // the lock left a note off: place it normally
+    if (runNote >= 0 && best?.assign[runNote]?.i === r.stringIndex) this.run = { ...r, midi: notes[runNote], steps: r.steps + 1 };
     return notes.map((m, k) => {
       const c = best && k < use.length ? best.assign[k] : null;
       return { midi: m, pos: c ? this.pos(c.i, c.fret) : null };
@@ -138,9 +149,9 @@ export class FretPicker {
 
   /** Like pick(), but doesn't move the hand (for the live readout). */
   peek(midi) {
-    const hand = this.hand;
+    const hand = this.hand, run = this.run;
     const res = this.pick(midi);
-    this.hand = hand;
+    this.hand = hand; this.run = run;
     return res;
   }
 
@@ -153,16 +164,26 @@ export class FretPicker {
         return this.pos(lock, fret);
       }
     }
+    // a chromatic run (fret after fret, one way) carries on along its string instead of hopping
+    // across the neck: someone climbing the low E plays 9, 10, 11, 12… on the low E
+    const r = this.run, d = r ? midi - r.midi : 0;
+    const onRun = r && r.steps >= 3 && Math.abs(d) >= 1 && Math.abs(d) <= 2 && Math.sign(d) === r.dir;
     let best = null;
     for (const { stringIndex: i, fret } of this.options(midi)) {
       let cost = Math.abs(fret - this.hand);
       if (fret === 0) cost -= 0.6;          // open strings are easy
       if (fret > 12) cost += 1.5;           // high up the neck is less common
       cost += fret * 0.04;                  // slight preference for lower frets
+      if (onRun && i === r.stringIndex && fret > 0) cost -= 4;
       if (!best || cost < best.cost) best = { cost, fret, stringIndex: i };
     }
     if (!best) return null;
     if (best.fret > 0) this.hand = Math.round(this.hand * 0.5 + best.fret * 0.5);
+    if (best.fret === 0 && r) return this.pos(best.stringIndex, best.fret); // an open string doesn't end a run
+    // a run builds fret by fret (one semitone at a time); once going, it can skip a missed fret
+    const step = r && r.stringIndex === best.stringIndex && (Math.abs(d) === 1 || (Math.abs(d) === 2 && r.steps >= 3)) && (!r.dir || Math.sign(d) === r.dir);
+    this.run = step ? { stringIndex: best.stringIndex, midi, dir: Math.sign(d), steps: r.steps + 1 }
+      : { stringIndex: best.stringIndex, midi, dir: 0, steps: 1 };
     return this.pos(best.stringIndex, best.fret);
   }
 }

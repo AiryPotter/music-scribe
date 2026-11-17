@@ -79,8 +79,12 @@ Music Scribe is for catching ideas while you practise, so the default is **Simpl
   - **Is there a cause?** It's the open string the previous note was fretted on, starting as that note ended.
   - **How was it played?** Quieter, a softer attack, or very short (this only adds to the doubt).
   A note is dropped only when it clearly doesn't fit (score below 0.55); its faint overtones go with it. Chords and strums are never touched, and a **pedal note** (an open string you come back to like clockwork, in the middle of the beat) is recognised as a pattern and kept.
+  - **Echoes and sympathy**: an octave (or other overtone) of the note just played, or a quieter stray note ringing along with the next fret of a smooth run, isn't written as a note or a chord.
   Test results: a scale up and down the low E string with open-E lift noise went from **16 wrong notes to 3, nothing missed**; the E/B scale from 32 wrong to 4. Across the 8 bench songs plus a pedal-note and an open-string riff, **no real notes are removed**.
 **Detailed** keeps every note and rest on a 16th-note grid. Switching re-writes the take (Undo brings the other version back).
+
+## Tab follows your string
+When you climb or descend one string fret by fret (3 or more notes, one fret apart), the tab keeps the run on that string (E1 E2 E3 … E19) instead of hopping across the neck. A stray open string or a stacked stray note doesn't break the run.
 
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.

@@ -84,6 +84,13 @@ export const LIFT_SONGS = [
       .concat([[16 * 2 + 1.8, 40, 0.3]]),                                // a doubled ghost (as after fret 18)
   },
   {
+    // the 2026-11-17 14.25 take: one fret per bar up the low E; an octave ghost after fret 2 and a
+    // quieter A ringing in sympathy with fret 10 (written as a "D5" chord, which threw the tab off the string)
+    name: 'Low E climb 1-19 (one string)', bpm: 100, meter: 4, lowest: 40,
+    notes: Array.from({ length: 19 }, (_, k) => [k * 4, [41 + k], 4]),
+    ghosts: [[6.4, 54, 0.3], [36.02, 57, 0.28], [22.6, 40, 0.3]],
+  },
+  {
     name: 'Pedal open E (guard)', bpm: 100, meter: 4, lowest: 40,
     notes: [55, 57, 59, 60, 62, 64, 62, 60, 59, 57].flatMap((m, k) => [[k * 2, [40], 1], [k * 2 + 1, [m], 1]]),
   },
@@ -334,8 +341,14 @@ export async function ghostReport(opts = {}) {
     const real = (n) => f.truth.some((t) => t.midi === n.midi && Math.abs(t.start - n.start) < 0.06);
     lines.push(`${s.name}: real notes removed ${dropped.filter(real).map((n) => `${n.midi}@${n.start.toFixed(2)}`).join(' ') || 0}, junk removed ${dropped.filter((n) => !real(n)).length}`);
   }
-  const f = await notesFor(LIFT_SONGS[0].name, opts);
-  const ev = R.quantize(f.notes.filter((n) => n.midi >= 38), { bpm: 100, beat0: f.lead, meter: 4 }, { simple: true, openStrings: opens }).events;
-  lines.push('', `written: ${ev.map((e) => e.keys.join('+')).join(' ')}`, `played:  ${f.truth.map((t) => t.midi).join(' ')}`);
+  const { FretPicker } = await import('../js/guitar.js');
+  const STR = ['E', 'A', 'D', 'G', 'B', 'e'];
+  for (const song of LIFT_SONGS.slice(0, 2)) {
+    const f = await notesFor(song.name, opts);
+    const ev = R.quantize(f.notes.filter((n) => n.midi >= 38), { bpm: 100, beat0: f.lead, meter: 4 }, { simple: true, openStrings: opens }).events;
+    const picker = new FretPicker();
+    const tab = ev.map((e) => picker.pickChord(e.keys).map((x) => (x.pos ? `${STR[x.pos.stringIndex]}${x.pos.fret}` : '?')).join('+'));
+    lines.push('', song.name, `  written: ${ev.map((e) => e.keys.join('+')).join(' ')}`, `  played:  ${f.truth.map((t) => t.midi).join(' ')}`, `  tab:     ${tab.join(' ')}`);
+  }
   return lines.join('\n');
 }
