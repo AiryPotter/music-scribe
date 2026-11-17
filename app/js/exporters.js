@@ -14,10 +14,16 @@ import { spell } from './keys.js';
 const enc = new TextEncoder();
 const xmlEsc = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
-/** "My Song" → "My Song.pdf"; strips characters file systems don't allow. */
+/** "2026-11-17 17.24" in the person's own time zone. */
+export function localStamp(d = new Date()) {
+  const z = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}.${z(d.getMinutes())}`;
+}
+
+/** "My Song" → "My Song.pdf"; untitled → "Thy Manuscript 2026-11-17 17.24.pdf". Strips characters file systems don't allow. */
 export function fileName(song, ext) {
   const base = (song.title || '').replace(/[\\/:*?"<>|#%]+/g, ' ').replace(/\s+/g, ' ').trim()
-    || `Music Scribe ${new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '.')}`;
+    || `Thy Manuscript ${localStamp()}`;
   return `${base}.${ext}`;
 }
 

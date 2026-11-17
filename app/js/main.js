@@ -18,7 +18,7 @@ import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
 import { removeClickNotes } from './notes-post.js';
 import * as FX from './fixlog.js';
 import { createExportSheet } from './exportui.js';
-import { PROJECT_FORMAT, validateProject } from './exporters.js';
+import { PROJECT_FORMAT, validateProject, localStamp } from './exporters.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -33,7 +33,7 @@ const ui = {
   liveNote: $('liveNote'), liveFret: $('liveFret'), liveCents: $('liveCents'), needle: $('tunerNeedle'),
   score: $('score'), count: $('noteCount'), clear: $('clearBtn'), status: $('scoreStatus'),
   bpm: $('bpmInput'), bpmUp: $('bpmUp'), bpmDown: $('bpmDown'), bpmHalf: $('bpmHalf'), bpmDouble: $('bpmDouble'),
-  meterSel: $('meterSelect'), keySel: $('keySelect'),
+  meterSel: $('meterSelect'), keySel: $('keySelect'), detailSel: $('detailSelect'),
   zoomIn: $('zoomIn'), zoomOut: $('zoomOut'), zoomReset: $('zoomReset'), zoomFit: $('zoomFit'),
   undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'), takes: $('takesBtn'), fixes: $('fixesBtn'), play: $('playBtn'), guitarToggle: $('guitarToggle'), guitarTools: $('guitarTools'),
   tuning: $('tuningSelect'), capo: $('capoSelect'), custom: $('customTuning'),
@@ -528,7 +528,7 @@ function computeTempo(t, { keepBpm = false } = {}) {
 /** Snap the take's notes to the grid → the editable score (throws away edits; callers push history first). */
 function requantize(t) {
   const keep = t.score?.key?.manual ? t.score.key : null;
-  const q = quantize(t.notes, t.tempo);
+  const q = quantize(t.notes, t.tempo, { simple: ui.detailSel.value !== 'detailed' });
   t.score = {
     tempo: { ...t.tempo },
     events: q.events.map((e) => ({ slot: e.slot, len: e.len, notes: e.keys.map((midi) => ({ midi })) })),
@@ -633,6 +633,14 @@ ui.keySel.addEventListener('change', () => {
     take.score.key = { fifths: Number(f), mode, manual: true };
   }
   layoutTake(take);
+});
+
+// ---------- detail: Simple (clean, for capturing ideas) or Detailed ----------
+ui.detailSel.value = store.get('detail', 'simple') === 'detailed' ? 'detailed' : 'simple';
+ui.detailSel.addEventListener('change', () => {
+  store.set('detail', ui.detailSel.value);
+  if (!take?.events || session) return;
+  rethinkRhythm(() => {}); // re-writes the take at the new detail (Undo brings back the old page)
 });
 
 // ---------- tempo controls ----------
@@ -1555,7 +1563,7 @@ ui.fixes.addEventListener('click', openFixes);
 $('fxClose').addEventListener('click', closeFixes);
 $('fxSave').addEventListener('click', async () => {
   const blob = FX.exportLog();
-  const name = `Music Scribe fixes ${new Date().toISOString().slice(0, 10)}.json`;
+  const name = `Thy Manuscript fixes ${localStamp().slice(0, 10)}.json`;
   const file = new File([blob], name, { type: 'application/json' });
   if (navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: name }); return; } catch (err) { if (err?.name === 'AbortError') return; }

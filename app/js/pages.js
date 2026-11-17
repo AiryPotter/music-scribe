@@ -193,12 +193,17 @@ export async function toPDF(song, model, opts, onProgress = () => {}) {
     const headPt = (drawHeading(probe, song, look, 0, -6 * k, headSizes) + 6 * k) / k;
     const fit1 = Math.max(1, Math.floor((P.h - margin - headPt - footPt - margin * 0.6) / rowPt));
     const fitN = Math.max(1, Math.floor((P.h - margin - footPt - margin * 0.6) / rowPt));
+    // fill each page with as many whole rows as fit (rows with very high notes are taller)
     const ranges = [];
+    const room1 = (P.h - margin - headPt - footPt - margin * 0.6) / unit, roomN = (P.h - margin - footPt - margin * 0.6) / unit;
     for (let r0 = 0; r0 < info.rows;) {
-      const n = ranges.length === 0 ? fit1 : fitN;
-      ranges.push([r0, Math.min(info.rows, r0 + n)]);
-      r0 += n;
+      const room = ranges.length === 0 ? room1 : roomN;
+      let r1 = r0 + 1;
+      while (r1 < info.rows && info.rowStarts[r1 + 1] - info.rowStarts[r0] <= room) r1++;
+      ranges.push([r0, r1]);
+      r0 = r1;
     }
+    void fit1; void fitN;
     const pages = [];
     for (let i = 0; i < ranges.length; i++) {
       const [r0, r1] = ranges[i];
@@ -210,8 +215,8 @@ export async function toPDF(song, model, opts, onProgress = () => {}) {
       if (i === 0) {
         y = drawHeading(g, song, look, W / 2, y - 6 * k, headSizes) + 6 * k;
       }
-      const sy0 = r0 === 0 ? 0 : info.topPad + r0 * info.rowHeight - 14;
-      const sy1 = info.topPad + r1 * info.rowHeight + 4;
+      const sy0 = r0 === 0 ? 0 : info.rowStarts[r0] - 4;
+      const sy1 = info.rowStarts[r1] + 4;
       const img = await sliceImage(r.svg, info, sy0, sy1, Math.round(contentW * k));
       g.drawImage(img, margin * k, y, contentW * k, (sy1 - sy0) * unit * k);
       // footer
@@ -263,20 +268,21 @@ export async function toImage(song, model, opts) {
     let rows = info.rows;
     let H = fixedH;
     if (!fixedH) {
-      H = Math.ceil(pad + headH + (info.topPad + rows * info.rowHeight + 6) * k + footH);
+      H = Math.ceil(pad + headH + (info.rowStarts[rows] + 6) * k + footH);
       if (W * H > MAX_PIXELS) { // very long piece: show as much as a phone can draw
         H = Math.floor(MAX_PIXELS / W);
         rows = Math.max(1, Math.floor((H - pad - headH - footH) / rowH));
       }
     } else {
-      rows = Math.max(1, Math.min(info.rows, Math.floor((H - pad - headH - footH) / rowH)));
+      rows = 1;
+      while (rows < info.rows && (info.rowStarts[rows + 1] + 4) * k <= H - pad - headH - footH) rows++;
     }
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const g = canvas.getContext('2d');
     drawFrame(g, W, H, look, pad);
     let y = drawHeading(g, song, look, W / 2, pad * 0.8, sizes) + 18;
-    const sy1 = info.topPad + rows * info.rowHeight + 4;
+    const sy1 = info.rowStarts[rows] + 4;
     const img = await sliceImage(r.svg, info, 0, sy1, Math.round(contentW * 1.5));
     const drawH = sy1 * k;
     // social posts: centre the music in the space that's left

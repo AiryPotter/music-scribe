@@ -55,3 +55,16 @@ A real-guitar test with the click on PC speakers produced steady extra notes. Th
 | All songs | 85% / 63% | 84% / **65%** |
 
 Strumming and the Drop D riff lose a little to the click either way (it masks some re-strums). The real fix still needs a real recording to confirm: after a take with the click, **Fixes → Save log** shows which extra notes appeared.
+
+## Simple detail (2026-11-17)
+After a real practice session (scales up and down) produced 10 messy PDF pages, **Simple** became the default. On a synthetic practice take (E major scale up and down twice with human timing and pauses, then E-A-B-E chords):
+
+| | Detailed | Simple |
+|---|---|---|
+| Rests written | 11 | **0** |
+| 16th notes | 44 | 14 (only the genuinely fast notes) |
+| Ties | 22 | 9 |
+| Chord-like stacks (only 4 real chords played) | 34 | **7** |
+| PDF pages | — | **1** |
+
+Both scale runs come out note for note apart from 4 small extras. The demo song is unchanged in Simple, except the doubled top G of the G chord is left out.

@@ -68,6 +68,17 @@ Tap **Export** (next to Clear) → **Seal & send**:
 ## Accuracy (without a guitar yet)
 A test bench of 8 guitar-like songs (`app/dev/bench.js`) measures how well Mozart writes things out. Tuning on 2026-11-17 raised notes found right from **75% to 82%** and exactly-right notes/chords from **45% to 55%**, and the 3/4 waltz is now read correctly. Full before/after table, how to run the bench, and known weak spots: `ACCURACY.md`.
 
+## Simple or Detailed (the Detail picker)
+Music Scribe is for catching ideas while you practise, so the default is **Simple**: a clean page you can read back.
+- Notes snap to 8th notes; each note lasts until the next one, so **no rests are added**. Put rests where you want them yourself (tap a note → **Make rest**, or pick a shorter **Length**).
+- A long pause doesn't fill bars with rests: the next phrase just starts on the next bar.
+- A string still ringing from the note before, and the faint overtones above a note, aren't written as extra notes. Only a real strum (three or more strings sounding loud together) becomes a chord.
+- Very quick notes still get their own place (a 16th note if there's no room for an 8th).
+**Detailed** keeps every note and rest on a 16th-note grid. Switching re-writes the take (Undo brings the other version back).
+
+## Downloads
+Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
+
 ## Tuner
 Tap **Tune** (under the Begin seal) before you play. Play one string at a time: the tuner finds the nearest string in your current tuning, shows the note, a needle from −50 to +50 cents, and says "Too low · tighten ↑", "Too high · loosen ↓" or "In tune ✓" (within ±5 cents). Each string gets a ✓ once it has stayed in tune for half a second. Tap a string to tune only that one (handy in a noisy room). With a capo set, it reminds you to tune with the capo off. It only listens: nothing is recorded or kept.
 

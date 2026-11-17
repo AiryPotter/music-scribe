@@ -77,6 +77,10 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - Tuner screen (Tune button): string-aware needle, in-tune ticks per string, tap to lock a string; listens only.
 - Click: live preview skips each tick; click-aware de-duplication and removal of beat-locked short notes in the final version.
 
+## Simple detail and Thy Manuscript names ✅ done 2026-11-17
+- Detail picker: Simple (default: 8th grid, no automatic rests, pauses close up, ringing/overtone notes dropped) or Detailed.
+- Untitled downloads named "Thy Manuscript <local date time>"; rows grow for very high notes so PDF rows don't overlap.
+
 ## Next (needs a guitar)
 - Record real takes on the Pixel and iPhone, compare with the bench, re-tune thresholds.
 - Strumming patterns and repeated power chords are the weakest areas.

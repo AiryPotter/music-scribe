@@ -86,7 +86,16 @@ export function renderScore(el, model, opts = {}) {
   });
   if (row.length) rows.push(row);
 
-  const pxHeight = Math.ceil((rows.length * ROW_H + TOP_PAD + 10) * scale);
+  // a row with very high notes (many ledger lines) gets extra room above it, so it doesn't overlap the row above
+  const rowExtra = rows.map((r) => {
+    let hi = 0;
+    for (const c of r) for (const p of c.m) if (!p.rest && p.keys?.length) hi = Math.max(hi, ...p.keys);
+    const written = hi + 12; // guitar is written an octave up
+    return showStaff ? Math.max(0, Math.ceil((written - 84) * 3.2) + (written > 84 ? 14 : 0)) : 0;
+  });
+  const rowStarts = [TOP_PAD];
+  rows.forEach((_, i) => rowStarts.push(rowStarts[i] + rowExtra[i] + ROW_H));
+  const pxHeight = Math.ceil((rowStarts[rows.length] + 10) * scale);
   const renderer = new Renderer(el, Renderer.Backends.SVG);
   renderer.resize(pxWidth, pxHeight);
   const ctx = renderer.getContext();
@@ -116,7 +125,7 @@ export function renderScore(el, model, opts = {}) {
     const total = r.reduce((s, c) => s + c.need, 0);
     const extra = (usable - total) / r.length;
     let x = 8;
-    const y = TOP_PAD + rowIdx * ROW_H;
+    const y = rowStarts[rowIdx] + rowExtra[rowIdx];
     r.forEach((cell, col) => {
       const w = cell.need + Math.max(0, extra);
       const stave = showStaff ? new Stave(x, y, w) : null;
@@ -243,7 +252,8 @@ export function renderScore(el, model, opts = {}) {
     } catch { /* skip a tie VexFlow can't draw */ }
   }
 
-  const info = { rows: rows.length, rowHeight: ROW_H, topPad: TOP_PAD, scale, pxWidth, pxHeight };
+  // rowStarts[i] = where row i begins (including its extra room); rowStarts[rows] = the end
+  const info = { rows: rows.length, rowHeight: ROW_H, topPad: TOP_PAD, rowStarts, scale, pxWidth, pxHeight };
 
   // highlight behind the selection, tap areas on top of everything
   const svg = el.querySelector('svg');

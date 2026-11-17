@@ -180,7 +180,8 @@ function pickLen(pos, room, barSlots) {
  * [{ slot, len, keys: [midi] }] (slots are 16ths from the start of bar 1; events never overlap).
  * tempo = { bpm, beat0, meter, offset } (offset = which beat is the downbeat).
  */
-export function quantize(notes, tempo) {
+export function quantize(notes, tempo, { simple = false } = {}) {
+  if (simple) return quantizeSimple(notes, tempo);
   const { bpm, beat0, meter } = tempo;
   const p = 60 / bpm;
   const slotDur = p / SLOTS_PER_BEAT;
@@ -216,6 +217,99 @@ export function quantize(notes, tempo) {
     return { slot: ev.slot, len: end - ev.slot, keys };
   });
   return { events, barStart };
+}
+
+/**
+ * "Simple" detail, for capturing ideas while practising: a clean page with few notes and no rests.
+ *  - notes snap to 8th notes (not 16ths)
+ *  - each note lasts until the next one: no rests are written (you add your own where you want them)
+ *  - a long pause just starts the next phrase at the next bar, instead of bars of rests
+ *  - octave and overtone "notes" stacked on a single played note are dropped
+ *  - very short, quiet blips are dropped
+ * Returns { events, barStart } like quantize().
+ */
+function quantizeSimple(notes, tempo) {
+  const { bpm, beat0, meter } = tempo;
+  const p = 60 / bpm;
+  const slotDur = p / SLOTS_PER_BEAT;
+  const GRID = 2; // slots: an 8th note
+  const barSlots = meter * SLOTS_PER_BEAT;
+  const kept = notes.filter((n) => !(n.end - n.start < 0.1 && (n.amp ?? 0.6) < 0.5));
+  if (!kept.length) return { events: [], barStart: beat0 };
+
+  const first = Math.min(...kept.map((n) => n.start));
+  let barStart = beat0 + (tempo.offset || 0) * p;
+  const barDur = meter * p;
+  while (barStart > first + slotDur) barStart -= barDur;
+  while (barStart + barDur <= first - slotDur) barStart += barDur;
+
+  // one pluck at a time (a strum is one pluck of several strings)
+  const OVERTONE = [12, 19, 24, 28, 31];
+  const oes = onsetEvents(kept);
+  let ringing = []; // notes from the last two plucks, probably still sounding
+  const plucks = oes.map((oe, oi) => {
+    let notesIn = [...oe.notes].sort((a, b) => a.midi - b.midi);
+    // a strum: three or more strings sounding loud together, with three different note names
+    // (a single note's overtones are much quieter than the note itself)
+    const loudest = Math.max(...notesIn.map((n) => n.amp ?? 0.6));
+    const strong = notesIn.filter((n) => (n.amp ?? 0.6) >= 0.55 * loudest);
+    const strum = strong.length >= 3 && new Set(strong.map((n) => ((n.midi % 12) + 12) % 12)).size >= 3;
+    const prevKeys = ringing;
+    if (!strum) {
+      // the string played just before is still ringing: not a new note
+      const fresh = notesIn.filter((n) => !prevKeys.includes(n.midi));
+      if (fresh.length) notesIn = fresh;
+      // overtones of the lowest note (octave, octave + 5th, two octaves…) aren't notes you played
+      const low = notesIn[0].midi;
+      notesIn = notesIn.filter((n) => n.midi === low || !OVERTONE.includes(n.midi - low));
+      // neighbouring notes heard together (a run, not a chord): keep the loudest
+      if (notesIn.length > 1 && (notesIn[notesIn.length - 1].midi - notesIn[0].midi <= 4 || notesIn.length > 2)) {
+        notesIn = [notesIn.reduce((a, b) => ((b.amp ?? 0.6) > (a.amp ?? 0.6) ? b : a))];
+      }
+    }
+    const keys = [...new Set(notesIn.map((n) => n.midi))].sort((a, b) => a - b);
+    const last = oes[oi - 1] ? oes[oi - 1].notes.map((n) => n.midi) : [];
+    ringing = [...new Set([...oe.notes.map((n) => n.midi), ...(oe.t - (oes[oi - 1]?.t ?? -9) < 1 ? last : [])])];
+    return { t: oe.t, keys };
+  });
+
+  // snap to the 8th-note grid; two quick notes that land on the same 8th go one after the other
+  const taken = new Map(); // slot → event
+  const snapped = plucks.map((pl) => ({ ...pl, s: Math.max(0, Math.round((pl.t - barStart) / (slotDur * GRID)) * GRID) }));
+  snapped.forEach((pl, i) => {
+    let s = pl.s;
+    if (taken.has(s)) {
+      const nextS = i + 1 < snapped.length ? snapped[i + 1].s : Infinity;
+      if (!taken.has(s + GRID) && s + GRID < nextS) s += GRID;          // the next 8th is free
+      else if (!taken.has(s + 1) && s + 1 < nextS) s += 1;              // otherwise a 16th: notes this fast are real
+    }
+    const ev = taken.get(s);
+    if (ev) { for (const k of pl.keys) if (!ev.keys.includes(k)) ev.keys.push(k); ev.keys.sort((a, b) => a - b); }
+    else taken.set(s, { slot: s, keys: [...pl.keys] });
+  });
+  let evs = [...taken.values()].sort((a, b) => a.slot - b.slot);
+
+  // the first note starts bar 1 (no lead-in rest)
+  const shift0 = evs[0].slot;
+  evs = evs.map((e) => ({ ...e, slot: e.slot - shift0 }));
+
+  // each note lasts until the next; a long pause moves the next phrase up to the next bar line
+  const events = [];
+  let shift = 0;
+  evs.forEach((e, i) => {
+    const slot = e.slot - shift;
+    const barEnd = (Math.floor(slot / barSlots) + 1) * barSlots;
+    let end;
+    if (i + 1 < evs.length) {
+      const next = evs[i + 1].slot - shift;
+      if (next - barEnd > barSlots) { // more than a whole empty bar: close the gap
+        shift += next - barEnd;
+        end = barEnd;
+      } else end = next;
+    } else end = barEnd; // the last note rings to the end of its bar
+    events.push({ slot, len: Math.max(GRID, end - slot), keys: e.keys });
+  });
+  return { events, barStart: barStart + shift0 * slotDur };
 }
 
 /**
