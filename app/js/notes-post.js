@@ -20,6 +20,9 @@ export const DEFAULTS = {
   splitOnsetKeep: 0.8,  // …or the model is at least this sure a note starts (a re-strum at the same loudness)
   splitScore: 0,        // without it: merge when onset + jumpWeight × (strength after − before) is below this
   jumpWeight: 2,
+  clickTimes: null,     // seconds: when each metronome beat reached the mic (a recording made with the click)
+  clickStrict: 2,       // at a beat, a 'new' note must get this × more louder than splitEnergy asks…
+  clickOnsetKeep: 0.97, // …or the model must be this sure (a click makes ringing strings look plucked again)
   strumCount: 0,        // (off: it didn't help on the bench) this many other strings plucked at once = never merge
   strumWindow: 6,       // frames (~70 ms) that count as "the same moment"
   // 2. Faint notes the model wasn't sure had a start (string noise, sympathetic ringing).
@@ -100,8 +103,10 @@ export function tidyEvents(events, raw, P, frameTime = null) {
     let plucked = true; // a note that follows silence at its pitch is a new pluck
     if (splitOn && contiguous) {
       if (P.splitEnergy > 0 && raw.audio && frameTime) {
-        plucked = energyRise(raw.audio, frameTime(ev.startFrame), ev.pitchMidi) >= P.splitEnergy
-          || (P.splitOnsetKeep > 0 && on >= P.splitOnsetKeep);
+        const t = frameTime(ev.startFrame);
+        const atBeat = !!P.clickTimes && P.clickTimes.some((c) => t >= c - 0.04 && t <= c + 0.09);
+        plucked = energyRise(raw.audio, t, ev.pitchMidi) >= P.splitEnergy * (atBeat ? P.clickStrict : 1)
+          || (P.splitOnsetKeep > 0 && on >= (atBeat ? P.clickOnsetKeep : P.splitOnsetKeep));
       } else {
         const jump = mean(raw.frames, ev.startFrame + 1, ev.startFrame + 6, p) - mean(raw.frames, ev.startFrame - 7, ev.startFrame - 2, p);
         plucked = !(P.splitScore > 0 && on + P.jumpWeight * jump < P.splitScore);
@@ -178,4 +183,38 @@ export function makeNotes(bp, raw, params = {}) {
     .filter((n) => n.midi >= 28 && n.midi <= MAX_GUITAR_MIDI) // the page trims to the tuning's range
     .sort((a, b) => a.start - b.start || a.midi - b.midi);
   return cleanNotes(notes, P);
+}
+
+/**
+ * Remove notes that are really the metronome leaking into the mic.
+ * clickTimes: when each tick reached the mic (seconds from the start of the recording).
+ * A pitch that keeps appearing right on the ticks, briefly, is the click (a speaker's thump,
+ * a ringing desk…), so those short notes go. Real notes on the beat vary in pitch and ring
+ * longer, so they stay, even a bass note repeated on every beat.
+ */
+export function removeClickNotes(notes, clickTimes, { before = 0.04, after = 0.09, share = 0.25, maxDur = 0.25 } = {}) {
+  if (!clickTimes?.length || !notes.length) return notes;
+  const sorted = [...clickTimes].sort((a, b) => a - b);
+  const nearest = (t) => { // index of the tick this note starts on, or -1
+    let lo = 0, hi = sorted.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] < t) lo = mid + 1; else hi = mid; }
+    for (const i of [lo - 1, lo]) if (i >= 0 && i < sorted.length && t >= sorted[i] - before && t <= sorted[i] + after) return i;
+    return -1;
+  };
+  const onTick = new Map(); // midi → { ticks: Set, durs: [] }
+  const tickOf = notes.map((n) => nearest(n.start));
+  notes.forEach((n, i) => {
+    if (tickOf[i] < 0) return;
+    const g = onTick.get(n.midi) || { ticks: new Set(), durs: [] };
+    g.ticks.add(tickOf[i]);
+    g.durs.push(n.end - n.start);
+    onTick.set(n.midi, g);
+  });
+  const clicky = new Set();
+  const need = Math.max(3, Math.ceil(share * sorted.length));
+  for (const [midi, g] of onTick) {
+    const d = [...g.durs].sort((a, b) => a - b);
+    if (g.ticks.size >= need && d[d.length >> 1] < maxDur * 0.8) clicky.add(midi);
+  }
+  return notes.filter((n, i) => !(tickOf[i] >= 0 && clicky.has(n.midi) && n.end - n.start < maxDur));
 }

@@ -973,3 +973,44 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .tk-rename input { background: #20170f; }
 }
+
+/* ---------- tuner ---------- */
+.tune-btn {
+  font: inherit; font-size: 15px; font-weight: 700; color: var(--burgundy);
+  min-height: 36px; padding: 2px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--burgundy); background: transparent;
+}
+.tn-strings { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 4px 0 10px; }
+.tn-string {
+  position: relative; font: inherit; color: var(--text); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 0; min-height: 52px; padding: 4px 2px;
+  border-radius: 10px; border: 1px solid var(--card-edge); background: transparent;
+}
+.tn-string strong { font-size: 18px; line-height: 1.1; }
+.tn-string small { font-size: 12px; color: var(--text-soft); }
+.tn-string i { position: absolute; top: 2px; right: 5px; font-style: normal; font-size: 13px; color: var(--good); font-weight: 700; }
+.tn-string.active { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.tn-string.locked { background: color-mix(in srgb, var(--burgundy) 14%, transparent); border-color: var(--burgundy); }
+.tn-string.done { border-color: var(--good); }
+.tn-dial { text-align: center; padding: 4px 0 2px; }
+.tn-note { font-family: var(--font-display); font-size: 56px; line-height: 1; color: var(--burgundy); }
+.tn-target { font-size: 16px; color: var(--text-soft); min-height: 1.4em; margin-top: 2px; }
+.tn-meter { position: relative; height: 54px; margin: 10px 22px 4px; }
+.tn-zone { position: absolute; left: 45%; width: 10%; top: 4px; bottom: 18px; border-radius: 4px; background: color-mix(in srgb, var(--good) 22%, transparent); }
+.tn-scale { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; font-size: 12px; color: var(--text-soft); }
+.tn-scale span { width: 30px; text-align: center; margin: 0 -15px; }
+.tn-meter::before { content: ""; position: absolute; left: 0; right: 0; top: 18px; height: 2px; background: var(--card-edge); }
+.tn-needle { position: absolute; top: 0; bottom: 16px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--seal); transition: left .08s linear; }
+.tn-needle.ok { background: var(--good); }
+.tn-needle.off { opacity: .15; }
+.tn-advice { font-size: 18px; font-weight: 700; min-height: 1.5em; }
+.tn-advice.ok { color: var(--good); }
+@media (max-width: 480px) {
+  .tn-strings { gap: 4px; }
+  .tn-string strong { font-size: 16px; }
+  .tune-btn { min-height: 44px; }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tune-btn, :root:not([data-theme="light"]) .tn-note { color: #e7b45a; border-color: #e7b45a; }
+  :root:not([data-theme="light"]) .tn-advice.ok, :root:not([data-theme="light"]) .tn-string i { color: #a7c46a; }
+}

@@ -68,6 +68,16 @@ Tap **Export** (next to Clear) → **Seal & send**:
 ## Accuracy (without a guitar yet)
 A test bench of 8 guitar-like songs (`app/dev/bench.js`) measures how well Mozart writes things out. Tuning on 2026-11-17 raised notes found right from **75% to 82%** and exactly-right notes/chords from **45% to 55%**, and the 3/4 waltz is now read correctly. Full before/after table, how to run the bench, and known weak spots: `ACCURACY.md`.
 
+## Tuner
+Tap **Tune** (under the Begin seal) before you play. Play one string at a time: the tuner finds the nearest string in your current tuning, shows the note, a needle from −50 to +50 cents, and says "Too low · tighten ↑", "Too high · loosen ↓" or "In tune ✓" (within ±5 cents). Each string gets a ✓ once it has stayed in tune for half a second. Tap a string to tune only that one (handy in a noisy room). With a capo set, it reminds you to tune with the capo off. It only listens: nothing is recorded or kept.
+
+## Recording with the click
+If the metronome plays through speakers, the mic hears it too. Music Scribe now knows exactly when every beat was, so:
+- the live preview ignores the instant of each tick;
+- when Mozart writes out the take, a string that's still ringing isn't written again just because a tick sounded (it must clearly get louder to count as a new pluck);
+- any short note that keeps appearing on the beats at the same pitch (a speaker's thump, a rattling desk) is removed, while real notes on the beat stay.
+Headphones are still the cleanest way to use the click.
+
 ## Key signatures
 Mozart works out the **key** from your notes (major or minor, e.g. "A minor", "B♭ major") and writes the key signature at the start of every line. Notes are spelled in the key (B♭ rather than A♯ in F major, F♮ with a natural sign in D major), and chord names follow the same spelling. The **Key** picker (next to Time) lets you choose a key; **Auto** goes back to Mozart's choice. The key goes into MusicXML, MIDI, Guitar Pro and project files.
 

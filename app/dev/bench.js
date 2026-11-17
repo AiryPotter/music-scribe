@@ -10,7 +10,7 @@ import { playPluck } from '../js/pluck.js';
 import { FretPicker, TUNINGS } from '../js/guitar.js';
 import { transcribe } from '../js/transcribe.js';
 import { onsetEvents, estimateTempo, detectMeter, quantize, STRUM_SPAN } from '../js/rhythm.js';
-import { makeNotes } from '../js/notes-post.js';
+import { makeNotes, removeClickNotes } from '../js/notes-post.js';
 
 const BP_URL = 'https://cdn.jsdelivr.net/npm/@spotify/basic-pitch@1.0.1/+esm';
 const rawCache = new Map(); // song name → the model's raw output, so clean-up settings can be compared quickly
@@ -76,7 +76,8 @@ function rng(seed) { // small deterministic generator, so every run plays the so
   return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 /** Returns { samples, sampleRate, truth: [{ midi, start }] } for a song. */
-export async function render(song, { seed = 7, jitterMs = 10, noise = 0.004, sampleRate = 44100 } = {}) {
+export async function render(song, opts = {}) {
+  const { seed = 7, jitterMs = 10, noise = 0.004, sampleRate = 44100 } = opts;
   const rand = rng(seed);
   const gauss = () => (rand() + rand() + rand() - 1.5) / 1.5; // roughly -1..1, bell-shaped
   const p = 60 / song.bpm;
@@ -109,6 +110,28 @@ export async function render(song, { seed = 7, jitterMs = 10, noise = 0.004, sam
   const strings = song.lowest === 38 ? TUNINGS.dropD.strings : TUNINGS.standard.strings;
   const picker = new FretPicker(strings, 0);
   const voices = new Map();
+  // optional: a metronome on every beat leaking in through a speaker (distorted, cabinet thump, echoes)
+  let clickTimes = null;
+  if (opts.click) {
+    const { clickSound, setClickStyle } = await import('../js/metronome.js');
+    setClickStyle(opts.click.style || 'tone');
+    const harsh = opts.click.harsh ?? 3;
+    const pre = oc.createGain(); pre.gain.value = harsh * (opts.click.level ?? 1);
+    const sh = oc.createWaveShaper(); const cv = new Float32Array(2048);
+    for (let i = 0; i < 2048; i++) { const x = i / 1023.5 - 1; cv[i] = Math.tanh(harsh * x + 0.4 * x * x); }
+    sh.curve = cv; pre.connect(sh); sh.connect(oc.destination);
+    for (const [f, q, g] of [[110, 15, 6 * harsh], [196, 12, 3 * harsh], [330, 10, 2 * harsh]]) {
+      const b = oc.createBiquadFilter(); b.type = 'bandpass'; b.frequency.value = f; b.Q.value = q;
+      const gg = oc.createGain(); gg.gain.value = g; sh.connect(b).connect(gg).connect(oc.destination);
+    }
+    for (const [ms, g] of [[9, 0.4], [17, 0.3], [31, 0.2]]) {
+      const d = oc.createDelay(0.1); d.delayTime.value = ms / 1000; const dg = oc.createGain(); dg.gain.value = g;
+      sh.connect(d).connect(dg).connect(oc.destination);
+    }
+    clickTimes = [];
+    for (let k = 0; k * p < dur - 1; k++) { const t = lead + k * p; clickTimes.push(t); clickSound(oc, t, k % song.meter === 0, pre); }
+    setClickStyle('tone');
+  }
   const realRandom = Math.random;
   Math.random = rand; // the pluck synth's string noise becomes repeatable too
   try {
@@ -126,7 +149,7 @@ export async function render(song, { seed = 7, jitterMs = 10, noise = 0.004, sam
   const samples = buf.getChannelData(0).slice();
   let lp = 0; // room noise: soft hiss
   for (let i = 0; i < samples.length; i++) { lp = lp * 0.9 + (rand() * 2 - 1) * 0.1; samples[i] += lp * noise * 3; }
-  return { samples, sampleRate, truth, lead };
+  return { samples, sampleRate, truth, lead, clickTimes };
 }
 
 // ---------- scoring ----------
@@ -167,15 +190,17 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 
 /** Run one song through transcription + rhythm analysis and score it. */
 export async function runSong(song, opts = {}) {
-  const key = `${song.name}|${opts.seed ?? 7}`;
+  const key = `${song.name}|${opts.seed ?? 7}|${opts.click ? JSON.stringify(opts.click) : ''}`;
   if (!rawCache.has(key)) {
     const r0 = await render(song, opts);
     const raw = await transcribe(r0.samples, r0.sampleRate, () => {}, { raw: true });
-    rawCache.set(key, { raw, truth: r0.truth, lead: r0.lead }); // the audio itself is dropped here
+    rawCache.set(key, { raw, truth: r0.truth, lead: r0.lead, clickTimes: r0.clickTimes });
   }
   const r = rawCache.get(key);
   const bp = await import(BP_URL);
-  let notes = makeNotes(bp, r.raw, opts.params);
+  const useClicks = r.clickTimes && opts.clickAware !== false;
+  let notes = makeNotes(bp, r.raw, { ...opts.params, ...(useClicks ? { clickTimes: r.clickTimes } : {}) });
+  if (useClicks) notes = removeClickNotes(notes, r.clickTimes);
   const floor = Math.min(38, song.lowest ?? 40);
   notes = notes.filter((n) => n.midi >= floor);
   const n = scoreNotes(r.truth, notes);

@@ -3,6 +3,7 @@
 // Practice options: slower speed, a click on every beat, and looping a stretch of bars.
 
 import { playPluck } from './pluck.js';
+import { clickSound } from './metronome.js';
 
 const LOOKAHEAD = 0.25; // seconds of sound scheduled ahead of the clock
 const TICK_MS = 40;
@@ -71,16 +72,7 @@ export class Player {
     return true;
   }
 
-  tickSound(t, accent) {
-    const osc = this.ctx.createOscillator(), g = this.ctx.createGain();
-    osc.frequency.value = accent ? 2600 : 2000;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(accent ? 0.35 : 0.22, t + 0.002);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    osc.connect(g).connect(this.out);
-    osc.start(t);
-    osc.stop(t + 0.06);
-  }
+  tickSound(t, accent) { clickSound(this.ctx, t, accent, this.out); }
 
   tick() {
     if (!this.playing) return;

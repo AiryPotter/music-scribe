@@ -61,7 +61,7 @@ async function resample(samples, fromRate) {
  * Transcribe a take. Returns [{ midi, start, end, amp }] with times in seconds from the start of `samples`.
  * onProgress(0..1, mode) is called as it works; mode is 'fast' (graphics chip) or 'slow' (CPU).
  */
-export async function transcribe(samples, sampleRate, onProgress = () => {}, { raw = false } = {}) {
+export async function transcribe(samples, sampleRate, onProgress = () => {}, { raw = false, clickTimes = null } = {}) {
   cancelTranscription();
   onProgress(0, 'fast');
   const audio = await resample(samples, sampleRate);
@@ -69,6 +69,6 @@ export async function transcribe(samples, sampleRate, onProgress = () => {}, { r
   return new Promise((resolve, reject) => {
     const id = nextId++;
     current = { id, resolve, reject, onProgress };
-    w.postMessage({ type: 'run', id, audio, modelUrl: MODEL_URL, forceCpu: FORCE_CPU, raw }, [audio.buffer]);
+    w.postMessage({ type: 'run', id, audio, modelUrl: MODEL_URL, forceCpu: FORCE_CPU, raw, clickTimes }, [audio.buffer]);
   });
 }

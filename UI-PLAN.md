@@ -73,6 +73,10 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 ## Key signatures ✅ done 2026-11-17
 - Auto key detection (major/minor, Krumhansl profiles + bass and final-note hints) with a Key picker; notes, editor names and chord names spelled in the key; key in all exports and projects.
 
+## Tuner and click clean-up ✅ done 2026-11-17
+- Tuner screen (Tune button): string-aware needle, in-tune ticks per string, tap to lock a string; listens only.
+- Click: live preview skips each tick; click-aware de-duplication and removal of beat-locked short notes in the final version.
+
 ## Next (needs a guitar)
 - Record real takes on the Pixel and iPhone, compare with the bench, re-tune thresholds.
 - Strumming patterns and repeated power chords are the weakest areas.

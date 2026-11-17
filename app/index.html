@@ -179,6 +179,7 @@
           <input id="clickToggle" type="checkbox">
           <span>Click</span>
         </label>
+        <button id="tuneBtn" class="tune-btn" type="button" title="Tune your guitar before you play">Tune</button>
       </div>
     </section>
 
@@ -366,6 +367,31 @@
     <div class="ed-body">
       <p id="tkEmpty" class="hint" hidden>No saved takes yet. Each take is saved here by itself once Mozart has written it out.</p>
       <ul id="tkList" class="tk-list"></ul>
+    </div>
+  </section>
+
+  <!-- Tuner: listens only, records nothing -->
+  <section id="tunerSheet" class="editor sheet" hidden aria-label="Tuner">
+    <div class="ed-head">
+      <div class="ed-title">
+        <strong>Tune thy guitar</strong>
+        <span id="tnSub">Play one string at a time · nothing is recorded</span>
+      </div>
+      <button id="tnClose" class="mini" type="button" aria-label="Close the tuner">✕</button>
+    </div>
+    <div class="ed-body">
+      <div id="tnStrings" class="tn-strings" role="group" aria-label="Strings: tap one to tune only that string"></div>
+      <div class="tn-dial" aria-live="polite">
+        <div id="tnNote" class="tn-note">—</div>
+        <div id="tnTarget" class="tn-target">Play a string</div>
+        <div class="tn-meter" aria-hidden="true">
+          <div class="tn-zone"></div>
+          <div class="tn-scale"><span>−50</span><span>−25</span><span>0</span><span>+25</span><span>+50</span></div>
+          <div id="tnNeedle" class="tn-needle off"></div>
+        </div>
+        <div id="tnAdvice" class="tn-advice">&nbsp;</div>
+      </div>
+      <p id="tnHint" class="hint small"></p>
     </div>
   </section>
 

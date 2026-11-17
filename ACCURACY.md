@@ -43,3 +43,15 @@ The original demo recording through the real app gives exactly the same result a
 
 ## Re-tuning from real playing
 Once there's a guitar: record, fix what Mozart got wrong, then **Fixes → Save log** and share the file. The biggest counts show which rule to re-tune: extra overtone notes → the ghost filter; "one note written as two" → `splitEnergy`; double tempo → the half-tempo check; and so on.
+
+## Click leaking from speakers (2026-11-17)
+A real-guitar test with the click on PC speakers produced steady extra notes. The bench can now leak a click into each song through a simulated speaker (`B.run({ click: { style: 'tone', harsh: 3 } })`, with `clickAware: false` for the old behaviour). In the simulation the beep itself never became notes; the likely cause is a ringing string being "re-plucked" by each tick. Results with the click leaking (notes found right / exactly right / wrong extra notes):
+
+| | Before | After |
+|---|---|---|
+| Fingerpicking | 91% / 81% / 5 | **94% / 88% / 3** |
+| Fast run | 91% / 82% / 5 | **94% / 88% / 3** |
+| Waltz | 77% / 38% / 3 | **77% / 42% / 0** |
+| All songs | 85% / 63% | 84% / **65%** |
+
+Strumming and the Drop D riff lose a little to the click either way (it masks some re-strums). The real fix still needs a real recording to confirm: after a take with the click, **Fixes → Save log** shows which extra notes appeared.

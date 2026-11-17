@@ -13,7 +13,9 @@ import { nameChord } from './chords.js';
 import * as E from './edits.js';
 import { playPluck } from './pluck.js';
 import { Player } from './player.js';
+import { Tuner } from './tuner.js';
 import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
+import { removeClickNotes } from './notes-post.js';
 import * as FX from './fixlog.js';
 import { createExportSheet } from './exportui.js';
 import { PROJECT_FORMAT, validateProject } from './exporters.js';
@@ -235,8 +237,30 @@ function openDemo() {
     osc.start(t);
     osc.stop(t + dur + 0.05);
   };
+  // ?leak (testing): the click is also "heard" by the demo's mic, the way PC speakers leak into a mic:
+  // band-limited, with a speaker-cabinet thump at a fixed low pitch, and short room echoes
+  let leak = null;
+  if (new URLSearchParams(location.search).has('leak')) {
+    leak = ctx.createGain();
+    leak.gain.value = 0.6;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 180;
+    const thump = ctx.createBiquadFilter(); thump.type = 'bandpass'; thump.frequency.value = 110; thump.Q.value = 12;
+    const thumpGain = ctx.createGain(); thumpGain.gain.value = 9;
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) { const x = (i / 511.5) - 1; curve[i] = Math.tanh(2.2 * x + 0.3 * x * x); }
+    shaper.curve = curve;
+    leak.connect(shaper);
+    shaper.connect(hp).connect(bus);
+    leak.connect(thump).connect(thumpGain).connect(bus);
+    for (const [ms, g] of [[7, 0.35], [13, 0.25], [23, 0.15]]) {
+      const d = ctx.createDelay(0.1); d.delayTime.value = ms / 1000;
+      const dg = ctx.createGain(); dg.gain.value = g;
+      hp.connect(d).connect(dg).connect(bus);
+    }
+  }
   return {
-    ctx, analyser, source: bus, deviceId: '__demo__', label: 'Demo song',
+    ctx, analyser, source: bus, deviceId: '__demo__', label: 'Demo song', leak,
     play(at, bpm) {
       const p = 60 / bpm;
       for (let loop = 0; loop < 2; loop++) {
@@ -264,6 +288,7 @@ async function start() {
   if (busy) return;
   busy = true;
   ui.record.disabled = true;
+  if (!$('tunerSheet').hidden) closeTuner();
   cancelTranscription(); // a new take replaces one still being written out
   flushSave();
   if (!$('takesSheet').hidden) closeTakes();
@@ -320,12 +345,13 @@ async function start() {
   let clickInfo = null;
   if (ui.click.checked) {
     metro = new Metronome(ctx, {
-      bpm, meter,
+      bpm, meter, leak: session.leak || null,
       onBeat: (b) => { if (b < meter) mozart.say(String(b + 1)); else if (b === meter) mozart.say(''); },
     });
+    clickLag = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.005;
     const t0 = metro.start(ctx.currentTime + 0.2);
     countInEnd = t0 + meter * (60 / bpm);
-    clickInfo = { bpm, meter, downbeat: countInEnd };
+    clickInfo = { bpm, meter, downbeat: countInEnd, first: t0 };
   }
   session.clickInfo = clickInfo;
   if (session.play) session.play(countInEnd || ctx.currentTime + 0.3, clickInfo ? bpm : 100);
@@ -388,7 +414,7 @@ async function stop() {
   take = {
     rec,
     live: notes.filter((n) => n.end).map((n) => ({ midi: n.midi, start: rel(n.start), end: rel(n.end), amp: 0.6 })),
-    click: clickInfo ? { ...clickInfo, downbeat: rel(clickInfo.downbeat) + latency } : null,
+    click: clickInfo ? { ...clickInfo, downbeat: rel(clickInfo.downbeat) + latency, first: rel(clickInfo.first) + latency } : null,
   };
   await analyzeTake();
 }
@@ -425,6 +451,13 @@ function setStatus(text, isBusy = false) {
   ui.status.classList.toggle('busy', isBusy);
 }
 
+/** When every click reached the mic, in seconds from the start of the recording. */
+function beatTimes(click, untilSecs) {
+  const p = 60 / click.bpm, out = [];
+  for (let c = click.first ?? click.downbeat; c <= untilSecs + p; c += p) out.push(c);
+  return out;
+}
+
 async function analyzeTake() {
   const t = take;
   mozart.set('squint');
@@ -433,11 +466,13 @@ async function analyzeTake() {
   updateUndoUi();
   let result = null;
   try {
+    const recSecs = t.rec.samples.length / t.rec.sampleRate;
+    t.clickTimes = t.click ? beatTimes(t.click, recSecs) : null;
     result = await transcribe(t.rec.samples, t.rec.sampleRate, (p, mode) => {
       const pct = `${Math.round(p * 100)}%`;
       mozart.say(pct);
       if (take === t) setProgress(p, mode === 'slow');
-    });
+    }, { clickTimes: t.clickTimes });
   } catch (err) {
     if (err?.name === 'AbortError') { t.rec = null; return; } // stopped by Clear / Begin
     console.warn('Accurate pass failed, using live notes', err);
@@ -450,7 +485,12 @@ async function analyzeTake() {
   t.notes = t.source === 'accurate' ? result : t.live;
   const lowest = Math.min(38, Math.min(...tuningStrings()) + guitar.capo); // below this can't be played
   t.notes = t.notes.filter((n) => n.midi >= lowest);
-  if (t.click) t.notes = t.notes.filter((n) => n.start > t.click.downbeat - 0.12);
+  if (t.click) {
+    t.notes = t.notes.filter((n) => n.start > t.click.downbeat - 0.12);
+    const before = t.notes.length;
+    t.notes = removeClickNotes(t.notes, t.clickTimes || beatTimes(t.click, Math.max(0, ...t.notes.map((n) => n.end)) + 1));
+    t.clickNotesRemoved = before - t.notes.length;
+  }
   t.events = onsetEvents(t.notes);
   computeTempo(t);
   requantize(t);
@@ -632,6 +672,7 @@ ui.meterSel.addEventListener('change', () => {
 });
 
 // ---------- analysis loop ----------
+let clickLag = 0; // how long a tick takes to come back in through the mic (output + input latency)
 function loop() {
   raf = requestAnimationFrame(loop);
   if (!session) return;
@@ -645,9 +686,12 @@ function loop() {
   else if (level > 0.5) { ui.levelStatus.textContent = 'Too loud'; ui.levelStatus.className = 'level-status loud'; }
   else { ui.levelStatus.textContent = 'Good'; ui.levelStatus.className = 'level-status good'; }
 
+  // the click leaks into the mic through speakers: ignore the instant of each tick (and its echo)
+  const tickAt = metro ? metro.lastTickBefore(t - clickLag) : -Infinity;
+  const inTick = t - clickLag - tickAt < 0.09;
   let freq = 0, clarity = 0;
-  if (level > gate) ({ freq, clarity } = detectPitch(buf, session.ctx.sampleRate));
-  tracker.update(t, level, freq, clarity, gate);
+  if (level > gate && !inTick) ({ freq, clarity } = detectPitch(buf, session.ctx.sampleRate));
+  if (!inTick) tracker.update(t, level, freq, clarity, gate);
 
   if (countInEnd && t < countInEnd) return; // Mozart is counting in
   if (tracker.cur) { lastSound = t; mozart.set('scribbling'); }
@@ -1530,6 +1574,114 @@ $('fxClear').addEventListener('click', () => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('fixesSheet').hidden) closeFixes(); });
 refreshFixCount();
+
+// ---------- tuner (listens only: nothing is recorded or kept) ----------
+const tuner = { t: null, session: null, tuned: new Set(), heldSince: 0 };
+function tunerStrings() { return tuningStrings(); }
+function renderTunerStrings(active = null) {
+  const strings = tunerStrings();
+  $('tnStrings').innerHTML = strings.map((m, i) => {
+    const on = tuner.t?.lock === i;
+    return `<button type="button" class="tn-string${on ? ' locked' : ''}${active === i ? ' active' : ''}${tuner.tuned.has(i) ? ' done' : ''}" data-i="${i}" aria-pressed="${on}">
+      <strong>${stringName(i, strings).replace('low ', '').replace('high ', '')}</strong><small>${noteNameFlat(m)}</small>${tuner.tuned.has(i) ? '<i aria-label="in tune">✓</i>' : ''}</button>`;
+  }).join('');
+}
+function showTuning(r) {
+  const needle = $('tnNeedle');
+  if (!r) { needle.classList.add('off'); $('tnAdvice').classList.remove('ok'); tuner.heldSince = 0; return; }
+  const strings = tunerStrings();
+  needle.classList.remove('off');
+  const c = Math.max(-50, Math.min(50, r.cents));
+  needle.style.left = `${50 + c}%`;
+  needle.classList.toggle('ok', r.inTune);
+  $('tnNote').textContent = noteNameFlat(Math.round(r.midi));
+  $('tnTarget').textContent = r.string !== null
+    ? `${stringName(r.string, strings)} string (${noteNameFlat(strings[r.string])})`
+    : 'Not near an open string';
+  const adv = $('tnAdvice');
+  adv.classList.toggle('ok', r.inTune);
+  if (r.string === null) adv.textContent = `${r.cents > 0 ? '+' : ''}${r.cents} cents`;
+  else if (r.inTune) adv.textContent = 'In tune ✓';
+  else if (r.cents < 0) adv.textContent = `${Math.abs(r.cents) > 50 ? 'Much too low' : 'Too low'} · tighten ↑ (${r.cents} cents)`;
+  else adv.textContent = `${r.cents > 50 ? 'Much too high' : 'Too high'} · loosen ↓ (+${r.cents} cents)`;
+  // a string counts as tuned once it has stayed in tune for half a second
+  if (r.inTune && r.string !== null) {
+    tuner.heldSince ||= performance.now();
+    if (performance.now() - tuner.heldSince > 500 && !tuner.tuned.has(r.string)) {
+      tuner.tuned.add(r.string);
+      mozart.say('✓');
+      renderTunerStrings(r.string);
+      return;
+    }
+  } else tuner.heldSince = 0;
+  $('tnStrings').querySelectorAll('.tn-string').forEach((b) => b.classList.toggle('active', Number(b.dataset.i) === r.string));
+}
+async function openTuner() {
+  if (session || busy) return;
+  closeEditor();
+  if (exportSheet.isOpen) exportSheet.close();
+  if (!$('takesSheet').hidden) closeTakes();
+  if (!$('fixesSheet').hidden) closeFixes();
+  stopPlayback();
+  tuner.tuned.clear();
+  $('tnNote').textContent = '—';
+  $('tnTarget').textContent = 'Play a string';
+  $('tnAdvice').textContent = ' ';
+  $('tnHint').textContent = guitar.capo ? `Tune with the capo off. Your tuning: ${tuningLabel()}.` : `Your tuning: ${tuningLabel()}. Tap a string to tune only that one.`;
+  $('tunerSheet').hidden = false;
+  document.body.classList.add('editing');
+  renderTunerStrings();
+  requestAnimationFrame(() => document.body.style.setProperty('--tray-h', `${$('tunerSheet').offsetHeight}px`));
+  try {
+    tuner.session = ui.mic.value === '__demo__' ? openTuneDemo() : await openMic(store.get('mic', ''));
+  } catch (err) {
+    const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+    $('tnTarget').textContent = denied ? 'Microphone permission was blocked. Allow it in the browser’s site settings.' : (err?.message || 'Could not open the microphone.');
+    return;
+  }
+  if ($('tunerSheet').hidden) { tuner.session.close(); tuner.session = null; return; } // closed while asking for the mic
+  tuner.t = new Tuner({ strings: tunerStrings(), onReading: showTuning });
+  tuner.t.start(tuner.session);
+  mozart.set('listening');
+}
+function closeTuner() {
+  tuner.t?.stop(); tuner.t = null;
+  tuner.session?.close(); tuner.session = null;
+  $('tunerSheet').hidden = true;
+  document.body.classList.remove('editing');
+  if (!session) mozart.set('asleep');
+}
+/** ?demo: a guitar being tuned (each string a little off, then in tune), since there's no mic here. */
+function openTuneDemo() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 4096;
+  const strings = tunerStrings();
+  const plan = [[0, -30], [0, 0], [3, 18], [3, 0], [5, -8], [5, 0]]; // [string, cents]
+  // each "pluck" is a filtered sawtooth at an exact, known offset, so the tuner's reading can be checked
+  plan.forEach(([s, cents], k) => {
+    const t = ctx.currentTime + 0.2 + k * 1.6;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 440 * Math.pow(2, (strings[s] + cents / 100 - 69) / 12);
+    const lp = ctx.createBiquadFilter(); lp.frequency.value = 1200;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+    osc.connect(lp).connect(g).connect(analyser);
+    osc.start(t); osc.stop(t + 1.55);
+  });
+  return { ctx, analyser, close() { ctx.close().catch(() => {}); } };
+}
+$('tuneBtn').addEventListener('click', openTuner);
+$('tnClose').addEventListener('click', closeTuner);
+$('tnStrings').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-i]');
+  if (!b || !tuner.t) return;
+  const i = Number(b.dataset.i);
+  tuner.t.lock = tuner.t.lock === i ? null : i;
+  tuner.t.recent = [];
+  renderTunerStrings();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('tunerSheet').hidden) closeTuner(); });
 
 // ---------- iPhone ----------
 // Safari may hold audio until the next touch (or pause it after a call); any tap wakes it.

@@ -70,7 +70,7 @@ self.onmessage = async (e) => {
     const { frames, onsets, contours } = await runModel(msg.audio, msg.forceCpu, report);
     const raw = { frames, onsets, contours, audio: msg.audio }; // the audio is only read here, then dropped with the worker's message
     if (msg.raw) self.postMessage({ type: 'done', id, raw }); // accuracy bench: tune the clean-up without re-running the model
-    else self.postMessage({ type: 'done', id, notes: makeNotes(bp, raw) });
+    else self.postMessage({ type: 'done', id, notes: makeNotes(bp, raw, msg.clickTimes ? { clickTimes: msg.clickTimes } : {}) });
   } catch (err) {
     self.postMessage({ type: 'error', id, message: String(err?.message || err) });
   }
