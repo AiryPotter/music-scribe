@@ -360,7 +360,7 @@ async function start() {
   ui.record.classList.add('on');
   ui.record.setAttribute('aria-pressed', 'true');
   ui.recordLabel.textContent = 'Cease';
-  setStatus(clickInfo ? `Recording with click · ♩=${bpm}` : 'Recording · live preview');
+  setStatus(clickInfo ? `Recording with the metronome · ♩=${bpm}` : 'Recording · live preview');
   lastSound = ctx.currentTime;
   mozart.set('idle');
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { wakeLock = null; }
@@ -915,7 +915,7 @@ function syncPractice() {
   $('prHint').textContent = hint;
   const parts = [`${practice.speed}%`];
   if (practice.loop) parts.push(`Loop ${practice.bars} bar${practice.bars === 1 ? '' : 's'}`);
-  if (practice.click) parts.push('Click');
+  if (practice.click) parts.push('Metronome');
   $('practiceToggle').querySelector('span').textContent = `Practice: ${parts.join(' · ')}`;
 }
 /** Change a practice setting; if music is playing, carry on from the same note with the new setting. */

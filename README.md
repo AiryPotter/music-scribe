@@ -17,7 +17,7 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 
 ## Status: Milestone 2 ✅
 - Records the whole take; press **Cease** and Mozart writes the **accurate version** with Spotify's Basic Pitch, on-device
-- **Tempo**: worked out automatically from free playing (fine-tune with − / + / ½× / 2×), or turn on **Click** for a metronome with a one-bar count-in
+- **Tempo**: worked out automatically from free playing (fine-tune with − / + / ½× / 2×), or turn on the **Metronome** for a one-bar count-in and a tick on every beat
 - **Time signature**: Auto (4/4 or 3/4), or pick 4/4, 3/4 or 2/4
 - Real rhythm: 16th-note grid, dotted notes, ties across bars, beamed eighths, rests
 - **Chords**: stacked in the notation, named above the staff (C, Am7, G/B…), and laid out as real chord shapes in the tab
@@ -96,8 +96,8 @@ Mozart works out the **key** from your notes (major or minor, e.g. "A minor", "B
 A **Practice** row appears under the manuscript header when there's music (on phones it folds into one "Practice" button):
 - **Speed** slider, 40–100% (in 5% steps), for learning something slowly
 - **Loop**: tap a note, turn Loop on, and its bar repeats; choose **1, 2 or 4 bars**
-- **Click**: a tick on every beat while playing back, accented on beat 1
-Changing any of these while music plays carries on from the same note. Speed, Click and the bar count are remembered.
+- **Metronome**: a tick on every beat while playing back, accented on beat 1
+Changing any of these while music plays carries on from the same note. Speed, Metronome and the bar count are remembered.
 
 ## Mozart's mistakes (fix log)
 The **Fixes** button (manuscript header) shows what you've corrected: wrong extra notes, missed notes, wrong pitch (with how far off), wrong length, notes written as two or joined, wrong tempo (halved/doubled) or time signature, string choice and chord names. Every fix in the note editor is counted automatically; Undo takes it back out; ▲▲ on one note counts as one fix. **Save log** makes a small .json file (counts and note numbers only: no audio, no song titles) you can share for re-tuning; **Clear log** has an Undo. Kept in this browser on this device.
