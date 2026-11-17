@@ -1,7 +1,8 @@
 import { listMics, openMic, looksBluetooth, IS_IOS, IS_STANDALONE, setAudioSession, wake } from './audio.js';
 import { detectPitch, rms } from './pitch.js';
 import { NoteTracker } from './tracker.js';
-import { FretPicker, noteName, stringName, TUNINGS, MAX_CAPO, tuningLetters, noteNameFlat } from './guitar.js';
+import { FretPicker, noteName, stringName, TUNINGS, MAX_CAPO, tuningLetters, noteNameFlat, setNameKey } from './guitar.js';
+import { detectKey, keyName, keyChoices } from './keys.js';
 import { renderScore, previewModel } from './score.js';
 import { Mozart } from './mozart.js';
 import { Recorder } from './recorder.js';
@@ -30,7 +31,7 @@ const ui = {
   liveNote: $('liveNote'), liveFret: $('liveFret'), liveCents: $('liveCents'), needle: $('tunerNeedle'),
   score: $('score'), count: $('noteCount'), clear: $('clearBtn'), status: $('scoreStatus'),
   bpm: $('bpmInput'), bpmUp: $('bpmUp'), bpmDown: $('bpmDown'), bpmHalf: $('bpmHalf'), bpmDouble: $('bpmDouble'),
-  meterSel: $('meterSelect'),
+  meterSel: $('meterSelect'), keySel: $('keySelect'),
   zoomIn: $('zoomIn'), zoomOut: $('zoomOut'), zoomReset: $('zoomReset'), zoomFit: $('zoomFit'),
   undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'), takes: $('takesBtn'), fixes: $('fixesBtn'), play: $('playBtn'), guitarToggle: $('guitarToggle'), guitarTools: $('guitarTools'),
   tuning: $('tuningSelect'), capo: $('capoSelect'), custom: $('customTuning'),
@@ -486,11 +487,13 @@ function computeTempo(t, { keepBpm = false } = {}) {
 
 /** Snap the take's notes to the grid → the editable score (throws away edits; callers push history first). */
 function requantize(t) {
+  const keep = t.score?.key?.manual ? t.score.key : null;
   const q = quantize(t.notes, t.tempo);
   t.score = {
     tempo: { ...t.tempo },
     events: q.events.map((e) => ({ slot: e.slot, len: e.len, notes: e.keys.map((midi) => ({ midi })) })),
   };
+  if (keep) t.score.key = keep; else ensureKey(t);
 }
 
 /** Score → drawable model: bars, ties, tab positions, chord names, tap targets, selection. */
@@ -498,8 +501,11 @@ function layoutTake(t, { quiet = false } = {}) {
   stopPlayback();
   resumeFrom = null;
   if (practice.loopAt && t.score && practice.loopAt.start >= (t.model?.measures.length ?? 1e9) * t.score.tempo.meter * SLOTS_PER_BEAT) practice.loopAt = null;
+  if (!t.score.key) ensureKey(t);
   const { events, tempo } = t.score;
   const meter = tempo.meter;
+  const fifths = t.score.key.fifths;
+  setNameKey(fifths);
   const barSlots = meter * SLOTS_PER_BEAT;
   const bars = layoutBars(events, barSlots);
 
@@ -511,7 +517,7 @@ function layoutTake(t, { quiet = false } = {}) {
     E.sortNotes(ev);
     const keys = ev.notes.map((n) => n.midi);
     const placed = picker.pickChord(keys, ev.notes.map((n) => n.str));
-    const auto = keys.length >= 2 ? nameChord(keys) : '';
+    const auto = keys.length >= 2 ? nameChord(keys, fifths) : '';
     let show = '';
     if (ev.chord !== undefined) { show = ev.chord; if (show) lastChord = show; }
     else if (auto) { if (auto !== lastChord) show = auto; lastChord = auto; }
@@ -550,18 +556,44 @@ function layoutTake(t, { quiet = false } = {}) {
   t.pieceStarts = new Map(); // evIdx → slots where each written piece starts (for Untie)
   bars.flat().forEach((p) => { if (!p.rest) (t.pieceStarts.get(p.evIdx) || t.pieceStarts.set(p.evIdx, []).get(p.evIdx)).push(p.at); });
 
-  t.model = { measures, meter, header: scoreHeader(), label: `Manuscript${t.title ? `: ${t.title}` : ''}, ${measures.length} bar${measures.length === 1 ? '' : 's'}, ${meter}/4 at ${Math.round(tempo.bpm)} beats per minute. Use the arrow keys to move between notes.` };
+  t.model = { measures, meter, keyFifths: fifths, header: scoreHeader(), label: `Manuscript${t.title ? `: ${t.title}` : ''}, ${measures.length} bar${measures.length === 1 ? '' : 's'}, ${meter}/4 at ${Math.round(tempo.bpm)} beats per minute. Use the arrow keys to move between notes.` };
   layoutVersion++;
   const noteCount = events.reduce((s, ev) => s + ev.notes.length, 0);
   ui.count.textContent = `${noteCount} note${noteCount === 1 ? '' : 's'}`;
   if (!quiet) {
     const how = t.source === 'accurate' ? 'Accurate' : 'From live notes (offline)';
-    setStatus(`${how} · ♩=${Math.round(tempo.bpm)} · ${meter}/4 · ${measures.length} bar${measures.length === 1 ? '' : 's'}${chordCount ? ` · ${chordCount} chord${chordCount === 1 ? '' : 's'}` : ''}${t.edited ? ' · edited' : ''}`);
+    syncKeyUi();
+    setStatus(`${how} · ♩=${Math.round(tempo.bpm)} · ${meter}/4 · ${keyName(t.score.key)} · ${measures.length} bar${measures.length === 1 ? '' : 's'}${chordCount ? ` · ${chordCount} chord${chordCount === 1 ? '' : 's'}` : ''}${t.edited ? ' · edited' : ''}`);
   }
   scheduleRender();
   if (sel) refreshEditor();
   if (!quiet) scheduleSave();
 }
+
+// ---------- key signature ----------
+for (const k of keyChoices()) ui.keySel.add(new Option(k.label, k.value));
+/** Work out the key for a take unless the person chose one. */
+function ensureKey(t, { redetect = false } = {}) {
+  if (!t?.score) return;
+  if (t.score.key?.manual && !redetect) return;
+  const k = detectKey(t.score.events);
+  t.score.key = { fifths: k.fifths, mode: k.mode, manual: false };
+}
+function syncKeyUi() {
+  const k = take?.score?.key;
+  ui.keySel.value = k?.manual ? `${k.fifths}:${k.mode}` : 'auto';
+  ui.keySel.options[0].textContent = k && !k.manual ? `Auto (${keyName(k)})` : 'Auto';
+}
+ui.keySel.addEventListener('change', () => {
+  if (!take?.score || session) return;
+  pushHistory();
+  if (ui.keySel.value === 'auto') ensureKey(take, { redetect: true });
+  else {
+    const [f, mode] = ui.keySel.value.split(':');
+    take.score.key = { fifths: Number(f), mode, manual: true };
+  }
+  layoutTake(take);
+});
 
 // ---------- tempo controls ----------
 function onTempoEdit(newBpm) {
@@ -652,6 +684,7 @@ function scheduleRender() {
     if (take?.model && !session) {
       renderScore(ui.score, take.model);
     } else {
+      setNameKey(0);
       const m = previewModel(notes, tracker?.cur || null);
       m.header = scoreHeader();
       renderScore(ui.score, m);
@@ -1203,6 +1236,7 @@ function buildSong() {
     composer: store.get('composer', ''),
     bpm: t.score.tempo.bpm,
     meter: t.score.tempo.meter,
+    key: t.score.key,
     strings,
     capo: guitar.capo,
     tuningName: guitar.id === 'custom' ? 'Custom' : TUNINGS[guitar.id].name,

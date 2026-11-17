@@ -14,8 +14,12 @@ export const TUNINGS = {
 };
 export const MAX_CAPO = 12;
 
+import { spelledName } from './keys.js';
+
+let nameKey = 0; // the key note names are spelled in (set when a take is laid out)
+export function setNameKey(fifths) { nameKey = fifths || 0; }
 export function noteName(midi) {
-  return SHARP_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+  return spelledName(midi, nameKey);
 }
 /** Name for an open string / tuning label (flats read better here: E♭ A♭ D♭…). */
 export function pitchClassName(midi, flats = true) {

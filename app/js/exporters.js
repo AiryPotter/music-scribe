@@ -9,6 +9,8 @@
 //   events: [{ slot, len, notes:[{ midi }] }],
 //   project: { ...everything needed to reopen } }
 
+import { spell } from './keys.js';
+
 const enc = new TextEncoder();
 const xmlEsc = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
@@ -77,15 +79,14 @@ export function toMusicXML(song) {
       return `<note><rest/><duration>${p.slots}</duration><voice>${voice}</voice><type>${type}</type>${dotXml}<staff>${staff}</staff></note>`;
     }
     return p.keys.map((midi, k) => {
-      const [step, alter] = STEPS[pc(midi)];
+      const sp = spell(midi, song.key?.fifths || 0);
       let x = '<note>';
       if (k > 0) x += '<chord/>';
-      x += `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>${octave(midi)}</octave></pitch>`;
+      x += `<pitch><step>${sp.letter}</step>${sp.alter ? `<alter>${sp.alter}</alter>` : ''}<octave>${sp.octave}</octave></pitch>`;
       x += `<duration>${p.slots}</duration>`;
       if (p.tieFromPrev) x += '<tie type="stop"/>';
       if (p.tieToNext) x += '<tie type="start"/>';
       x += `<voice>${voice}</voice><type>${type}</type>${dotXml}`;
-      if (alter && staff === 1) x += '<accidental>sharp</accidental>';
       x += `<staff>${staff}</staff>`;
       const n = [];
       if (p.tieFromPrev) n.push('<tied type="stop"/>');
@@ -104,7 +105,7 @@ export function toMusicXML(song) {
         const [step, alter] = STEPS[pc(m)];
         return `<staff-tuning line="${line + 1}"><tuning-step>${step}</tuning-step>${alter ? `<tuning-alter>${alter}</tuning-alter>` : ''}<tuning-octave>${octave(m)}</tuning-octave></staff-tuning>`;
       }).join('');
-      L.push('<attributes><divisions>4</divisions><key><fifths>0</fifths></key>'
+      L.push(`<attributes><divisions>4</divisions><key><fifths>${song.key?.fifths || 0}</fifths><mode>${song.key?.mode || 'major'}</mode></key>`
         + `<time><beats>${song.meter}</beats><beat-type>4</beat-type></time><staves>2</staves>`
         + '<clef number="1"><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef>'
         + '<clef number="2"><sign>TAB</sign><line>5</line></clef>'
@@ -149,6 +150,7 @@ export function toMIDI(song) {
     0, 0xff, 0x03, ...vlq(name.length), ...name,
     0, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff,
     0, 0xff, 0x58, 0x04, song.meter, 2, 24, 8,
+    0, 0xff, 0x59, 0x02, (song.key?.fifths || 0) & 0xff, song.key?.mode === 'minor' ? 1 : 0, // key signature
     0, 0xc0, 25, // program 26 (1-based): Acoustic Guitar (steel)
   ];
   let last = 0;
@@ -229,6 +231,10 @@ export function toProject(song) {
  * Check a project (from a file or the takes library) and return a clean copy.
  * Throws a friendly error if anything in it would break the page.
  */
+function cleanKey(k) {
+  if (!k || !Number.isInteger(k.fifths) || Math.abs(k.fifths) > 7 || !['major', 'minor'].includes(k.mode)) return {};
+  return { key: { fifths: k.fifths, mode: k.mode, manual: !!k.manual } };
+}
 export function validateProject(data) {
   const damaged = () => new Error('That project is damaged, so it wasn’t opened.');
   if (data?.format !== PROJECT_FORMAT || !Array.isArray(data.take?.score?.events)) throw new Error('That file isn’t a Music Scribe project.');
@@ -273,7 +279,7 @@ export function validateProject(data) {
     take: {
       source: String(data.take.source || 'project').slice(0, 20),
       notes,
-      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, events },
+      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, events, ...cleanKey(data.take.score.key) },
     },
   };
 }

@@ -70,6 +70,9 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 ## Practice playback ✅ done 2026-11-17
 - Speed slider 40–100%, loop the selected note's bar (1/2/4 bars), click on every beat. Row under the header; folds into a Practice button on phones.
 
+## Key signatures ✅ done 2026-11-17
+- Auto key detection (major/minor, Krumhansl profiles + bass and final-note hints) with a Key picker; notes, editor names and chord names spelled in the key; key in all exports and projects.
+
 ## Next (needs a guitar)
 - Record real takes on the Pixel and iPhone, compare with the bench, re-tune thresholds.
 - Strumming patterns and repeated power chords are the weakest areas.

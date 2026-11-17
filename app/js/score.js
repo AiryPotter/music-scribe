@@ -6,7 +6,7 @@
 // slots are 16th notes (4 = quarter note).
 // When pieces carry `ref`, invisible tap areas (<rect data-ref>) are added over each column.
 
-import { vexKey } from './guitar.js';
+import { spell, signature, vexKeySpec } from './keys.js';
 import { DUR } from './rhythm.js';
 
 const ROW_HEIGHT = 240;
@@ -35,8 +35,8 @@ export function previewModel(notes, liveNote) {
   return { measures, meter: 4 };
 }
 
-function minMeasureWidth(m, withClef, withTime) {
-  return 40 + (withClef ? 46 : 0) + (withTime ? 26 : 0) + m.reduce((w, p) => w + (p.slots <= 2 ? 24 : 32), 0);
+function minMeasureWidth(m, withClef, withTime, keyW = 0) {
+  return 40 + (withClef ? 46 + keyW : 0) + (withTime ? 26 : 0) + m.reduce((w, p) => w + (p.slots <= 2 ? 24 : 32) + (p.acc ? 8 : 0), 0);
 }
 
 /**
@@ -52,6 +52,8 @@ export function renderScore(el, model, opts = {}) {
   const { Renderer, Stave, TabStave, StaveNote, TabNote, GhostNote, Voice, Formatter, Accidental,
     StaveConnector, Dot, Beam, StaveTie, Annotation, Fraction } = VF;
   const { measures, meter = 4, header = '' } = model;
+  const fifths = model.keyFifths || 0;
+  const keyW = Math.abs(fifths) * 10 + (fifths ? 6 : 0);
   const layout = opts.layout || 'both';
   const showStaff = layout !== 'tab';
   const showTab = layout !== 'notation';
@@ -77,9 +79,9 @@ export function renderScore(el, model, opts = {}) {
   const rows = [];
   let row = [], used = 0;
   measures.forEach((m, i) => {
-    const need = minMeasureWidth(m, row.length === 0, i === 0);
+    const need = minMeasureWidth(m, row.length === 0, i === 0, keyW);
     if (row.length && used + need > usable) { rows.push(row); row = []; used = 0; }
-    row.push({ m, i, need: minMeasureWidth(m, row.length === 0, i === 0) });
+    row.push({ m, i, need: minMeasureWidth(m, row.length === 0, i === 0, keyW) });
     used += row[row.length - 1].need;
   });
   if (row.length) rows.push(row);
@@ -119,7 +121,10 @@ export function renderScore(el, model, opts = {}) {
       const w = cell.need + Math.max(0, extra);
       const stave = showStaff ? new Stave(x, y, w) : null;
       const tab = showTab ? new TabStave(x, y + TAB_Y, w) : null;
-      if (col === 0) { stave?.addClef('treble', 'default', '8vb'); tab?.addClef('tab'); }
+      if (col === 0) {
+        stave?.addClef('treble', 'default', '8vb'); tab?.addClef('tab');
+        if (fifths) stave?.addKeySignature(vexKeySpec(fifths));
+      }
       if (cell.i === 0) stave?.addTimeSignature(`${meter}/4`);
       if (typeof Stave.formatBegModifiers === 'function') Stave.formatBegModifiers([stave, tab].filter(Boolean));
       stave?.setContext(ctx).draw();
@@ -135,6 +140,8 @@ export function renderScore(el, model, opts = {}) {
       }
 
       const staffNotes = [], tabNotes = [];
+      const sig = signature(fifths);
+      const inBar = new Map(); // `${letter}${octave}` → alter currently in force in this bar
       cell.m.forEach((p) => {
         const [dur, dots] = DUR[p.slots] || ['q', 0];
         let sn = null, tn = null;
@@ -143,9 +150,14 @@ export function renderScore(el, model, opts = {}) {
           if (isRest) {
             sn = new StaveNote({ keys: ['b/4'], duration: dur, dots, type: 'r' });
           } else {
-            const ks = p.keys.map(vexKey);
-            sn = new StaveNote({ keys: ks.map((k) => k.key), duration: dur, dots, auto_stem: true });
-            ks.forEach((k, idx) => { if (k.sharp) sn.addModifier(new Accidental('#'), idx); });
+            const sp = p.keys.map((m) => spell(m + 12, fifths)); // guitar is written an octave up
+            sn = new StaveNote({ keys: sp.map((x) => `${x.letter.toLowerCase()}${x.alter === 1 ? '#' : x.alter === -1 ? 'b' : ''}/${x.octave}`), duration: dur, dots, auto_stem: true });
+            sp.forEach((x, idx) => {
+              const where = `${x.letter}${x.octave}`;
+              const current = inBar.has(where) ? inBar.get(where) : sig[x.letter];
+              if (x.alter !== current && !p.tieFromPrev) sn.addModifier(new Accidental(x.alter === 1 ? '#' : x.alter === -1 ? 'b' : 'n'), idx);
+              inBar.set(where, x.alter);
+            });
           }
         }
         if (showTab) {

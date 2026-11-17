@@ -19,8 +19,10 @@ const TEMPLATES = [
   { s: '5', iv: [0, 7] },
 ];
 
-/** Returns a chord name, or '' if the notes don't form a recognisable chord. */
-export function nameChord(midis) {
+import { spelledPc } from './keys.js';
+
+/** Returns a chord name, or '' if the notes don't form a recognisable chord. fifths = the key, for spelling (B♭ vs A♯). */
+export function nameChord(midis, fifths = null) {
   const uniq = [...new Set(midis)].sort((a, b) => a - b);
   const pcs = [...new Set(uniq.map((m) => ((m % 12) + 12) % 12))];
   if (pcs.length < 2) return '';
@@ -43,6 +45,7 @@ export function nameChord(midis) {
     }
   }
   if (!best || best.score < 3) return '';
-  const name = NAMES[best.root] + best.s;
-  return best.root === bass || best.s === '5' ? name : `${name}/${NAMES[bass]}`;
+  const nm = (pc) => (fifths === null ? NAMES[pc] : spelledPc(pc, fifths));
+  const name = nm(best.root) + best.s;
+  return best.root === bass || best.s === '5' ? name : `${name}/${nm(bass)}`;
 }

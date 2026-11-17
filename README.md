@@ -68,6 +68,9 @@ Tap **Export** (next to Clear) → **Seal & send**:
 ## Accuracy (without a guitar yet)
 A test bench of 8 guitar-like songs (`app/dev/bench.js`) measures how well Mozart writes things out. Tuning on 2026-11-17 raised notes found right from **75% to 82%** and exactly-right notes/chords from **45% to 55%**, and the 3/4 waltz is now read correctly. Full before/after table, how to run the bench, and known weak spots: `ACCURACY.md`.
 
+## Key signatures
+Mozart works out the **key** from your notes (major or minor, e.g. "A minor", "B♭ major") and writes the key signature at the start of every line. Notes are spelled in the key (B♭ rather than A♯ in F major, F♮ with a natural sign in D major), and chord names follow the same spelling. The **Key** picker (next to Time) lets you choose a key; **Auto** goes back to Mozart's choice. The key goes into MusicXML, MIDI, Guitar Pro and project files.
+
 ## Practice playback
 A **Practice** row appears under the manuscript header when there's music (on phones it folds into one "Practice" button):
 - **Speed** slider, 40–100% (in 5% steps), for learning something slowly
