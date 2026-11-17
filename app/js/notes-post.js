@@ -140,7 +140,7 @@ export function tidyEvents(events, raw, P, frameTime = null) {
       return;
     }
     if (P.weakAmp > 0 && ev.amplitude < P.weakAmp && info[i].on < P.weakOnset) return;
-    const kept = { ...ev };
+    const kept = { ...ev, onset: info[i].on };
     out.push(kept);
     lastAt.set(ev.pitchMidi, kept);
   });
@@ -178,8 +178,14 @@ export function makeNotes(bp, raw, params = {}) {
   const frameTime = (f) => bp.noteFramesToTime([{ startFrame: f, durationFrames: 1, pitchMidi: 60, amplitude: 0 }])[0].startTimeSeconds;
   events = tidyEvents(events, raw, P, frameTime);
   const timed = bp.noteFramesToTime(bp.addPitchBendsToNoteEvents(raw.contours, events));
+  const sameOrder = timed.length === events.length; // the library maps note for note, so the attack confidence lines up
   const notes = timed
-    .map((n) => ({ midi: n.pitchMidi, start: n.startTimeSeconds, end: n.startTimeSeconds + n.durationSeconds, amp: n.amplitude }))
+    .map((n, i) => {
+      const note = { midi: n.pitchMidi, start: n.startTimeSeconds, end: n.startTimeSeconds + n.durationSeconds, amp: n.amplitude };
+      const on = sameOrder && events[i].pitchMidi === n.pitchMidi ? events[i].onset : undefined;
+      if (on != null) note.onset = Math.round(on * 100) / 100; // how sure the model is a string was plucked here
+      return note;
+    })
     .filter((n) => n.midi >= 28 && n.midi <= MAX_GUITAR_MIDI) // the page trims to the tuning's range
     .sort((a, b) => a.start - b.start || a.midi - b.midi);
   return cleanNotes(notes, P);

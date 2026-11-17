@@ -85,3 +85,27 @@ Synthetic test: chromatic run up/down the high E and B strings, 50 notes, plus 3
 | Real notes missed | 1 | **0** |
 
 Across the 8 bench songs the filter removed **0 real notes** (it first removed 11 chord notes from the demo and one Drop D power-chord note, which is why the chord rule exists). `notesFor` in the bench also had a cache-key bug, now fixed. The remaining extras are ghosts nearly as loud as the real note (over 86%); a real recording's fix log will show whether that threshold should go lower.
+
+## Intention scale for finger-lift noise (2026-11-17, second pass)
+The next real take (a scale up and down the **low E** string) still showed stray open-E notes ("0") after frets 14, 15 and 18 (twice). On the low E, a high-fret note is quiet and the open string rings loud, so the ghost was as loud as the real note: a loudness rule can't catch it. `intentionScores` in `app/js/rhythm.js` now gives every lone note a 0–1 score:
+
+- **misfit** (needed to call anything an accident): *late* (lands just before the next note), *squeezed* (late inside a gap the rest of the rhythm treats as one beat), *spike* (leaps away and the tune carries on: 14 → 0 → 15), *intrusion* (in a single-note line, an open string sounding together with the next note), *trailing* (the last sound of the take).
+- **support**: *openLift* (it's the open pitch of a string the previous note could be fretted on) and *release* (it starts as that note ends).
+- **weakness**: quieter than its neighbours, a softer attack than theirs (the transcriber's onset confidence, now kept on each note), or very short.
+- intent = 1 − 0.6 × misfit × (0.35 + 0.65·support) × (0.6 + 0.4·weakness) / 0.6; dropped below **0.55**.
+- Never touched: chords and strums (another real note starts with it); overtones (they go with their note). A **pedal note** (same pitch coming back at equal gaps, in the middle of the beat) has its misfit halved.
+
+Timing is judged on onsets (notes struck together count as one), and overtones are recognised as harmonics (12, 19, 24, 28, 31, 36 semitones) of a louder note that's sounding, so they don't pose as chord partners.
+
+New bench takes (`LIFT_SONGS`, run `ghostReport()` in `app/dev/bench.js`), Simple mode, filter off → on:
+
+| Take | Wrong notes | Missed |
+|---|---|---|
+| Low E scale up/down, 13 open-E lift ghosts (some as loud as the fretted note) | 16 → **3** | 0 → **0** |
+| E/B chromatic scale with 34 quiet ghosts (synthetic, no audio) | 32 → **4** | 1 → 1 |
+| Pedal open E (guard: every other note is a real open E) | 4 → 4 | 2 → 2 |
+| Riff down to open E (guard) | 1 → 1 | 1 → 1 |
+
+Real notes removed across the 8 bench songs: **0** (strums, waltz chords, Drop D power chords, fingerpicking all intact). Detailed mode isn't affected (bench summary 83% note score / 54% exact on one seed, in line with the 3-seed 82% / 55%).
+
+Still left: a ghost overtone that comes in a moment after the ghost (written as a 2-note stack), and a ghost that is the very last sound of the take while the note before still rings. Both are a single tap to fix. Tuning further needs a real take: after the next recording, **Fixes → Save log** shows which extras remain.

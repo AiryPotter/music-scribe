@@ -74,7 +74,12 @@ Music Scribe is for catching ideas while you practise, so the default is **Simpl
 - A long pause doesn't fill bars with rests: the next phrase just starts on the next bar.
 - A string still ringing from the note before, and the faint overtones above a note, aren't written as extra notes. Only a real strum (three or more strings sounding loud together) becomes a chord.
 - Very quick notes still get their own place (a 16th note if there's no room for an 8th).
-- **Finger-lift noise is filtered out.** Lifting a finger off a string often makes the open string sound faintly, or a short scratch. A quieter open-string note (or a short, much quieter note) right after the note you were holding isn't written. Notes in a chord or strum are never touched, and a real open string you pluck as loud as the notes around it stays. (Test take: a chromatic scale up and down the E and B strings went from 32 wrong notes to 7, with no real notes lost; the 8 bench songs lost no real notes.)
+- **Finger-lift noise is filtered out, using an intention scale.** Lifting a finger off a fretted string lets that string ring open (a stray "0" in the tab), sometimes as loud as the note itself. So Mozart doesn't judge by loudness alone: every lone note gets an intention score from 0 (accident) to 1 (played on purpose), built from:
+  - **Does it fit?** It lands late, just before the next note, in a gap the rhythm treats as one beat; it leaps away from the tune and back (14 → 0 → 15); or it arrives together with the next note in a single-note line.
+  - **Is there a cause?** It's the open string the previous note was fretted on, starting as that note ended.
+  - **How was it played?** Quieter, a softer attack, or very short (this only adds to the doubt).
+  A note is dropped only when it clearly doesn't fit (score below 0.55); its faint overtones go with it. Chords and strums are never touched, and a **pedal note** (an open string you come back to like clockwork, in the middle of the beat) is recognised as a pattern and kept.
+  Test results: a scale up and down the low E string with open-E lift noise went from **16 wrong notes to 3, nothing missed**; the E/B scale from 32 wrong to 4. Across the 8 bench songs plus a pedal-note and an open-string riff, **no real notes are removed**.
 **Detailed** keeps every note and rest on a 16th-note grid. Switching re-writes the take (Undo brings the other version back).
 
 ## Downloads

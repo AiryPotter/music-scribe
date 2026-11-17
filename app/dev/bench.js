@@ -70,6 +70,29 @@ export const SONGS = [
   },
 ];
 
+// Finger-lift tests (not in the averages above): a slow scale on the low E string where lifting the
+// finger lets the open string ring (some as loud as the fretted note, as at high frets), plus two
+// guards whose open strings are played on purpose and must stay. Run with liftCheck().
+const LOW_E_UP = Array.from({ length: 18 }, (_, k) => 42 + k);           // frets 2 → 19
+const LOW_E = [...LOW_E_UP, ...LOW_E_UP.slice(0, -1).reverse()];        // and back down
+export const LIFT_SONGS = [
+  {
+    name: 'Low E scale + lift noise', bpm: 100, meter: 4, lowest: 40,
+    notes: LOW_E.map((m, k) => [k * 2, [m], 2]),
+    // the open E rings late in a note as the finger lifts, just before the next fret; levels vary
+    ghosts: LOW_E.flatMap((m, k) => (k % 3 === 1 || k === 16 ? [[k * 2 + 1.55, 40, [0.22, 0.35, 0.5][k % 3 === 1 ? (k >> 1) % 3 : 2]]] : []))
+      .concat([[16 * 2 + 1.8, 40, 0.3]]),                                // a doubled ghost (as after fret 18)
+  },
+  {
+    name: 'Pedal open E (guard)', bpm: 100, meter: 4, lowest: 40,
+    notes: [55, 57, 59, 60, 62, 64, 62, 60, 59, 57].flatMap((m, k) => [[k * 2, [40], 1], [k * 2 + 1, [m], 1]]),
+  },
+  {
+    name: 'Riff down to open E (guard)', bpm: 100, meter: 4, lowest: 40,
+    notes: [0, 4, 8, 12].flatMap((b) => [[b, [52], 1], [b + 1, [50], 1], [b + 2, [48], 1], [b + 3, [40], 1]]),
+  },
+];
+
 // ---------- rendering ----------
 function rng(seed) { // small deterministic generator, so every run plays the songs the same way
   let a = seed >>> 0;
@@ -263,9 +286,56 @@ export async function run(opts = {}) {
 
 /** For diagnosis: the notes the pipeline produced for a song, next to what was played. */
 export async function notesFor(name, opts = {}) {
-  const song = SONGS.find((s) => s.name === name);
+  const song = [...SONGS, ...LIFT_SONGS].find((s) => s.name === name);
   await runSong(song, opts);
   const r = rawCache.get(`${song.name}|${opts.seed ?? 7}|${opts.click ? JSON.stringify(opts.click) : ''}`);
   const bp = await import(BP_URL);
   return { song, truth: r.truth, lead: r.lead, notes: makeNotes(bp, r.raw, opts.params), raw: r.raw, bp };
+}
+
+/**
+ * Finger-lift check: each LIFT_SONGS take through the real transcriber, then Simple mode with the
+ * lift filter off and on. Counts are against what was really played (the ghosts aren't in it).
+ */
+export async function liftCheck(opts = {}) {
+  const R = await import('../js/rhythm.js');
+  const opens = [40, 45, 50, 55, 59, 64];
+  const rows = [];
+  for (const song of LIFT_SONGS) {
+    const f = await notesFor(song.name, opts);
+    const notes = f.notes.filter((n) => n.midi >= 38);
+    const tempo = { bpm: song.bpm, beat0: f.lead, meter: song.meter };
+    const truth = f.truth.map((t) => t.midi);
+    const count = (releaseFilter) => {
+      const got = R.quantize(notes, tempo, { simple: true, openStrings: opens, releaseFilter }).events.flatMap((e) => e.keys);
+      const d = Array.from({ length: got.length + 1 }, () => new Array(truth.length + 1).fill(0));
+      for (let i = 1; i <= got.length; i++) for (let j = 1; j <= truth.length; j++) d[i][j] = got[i - 1] === truth[j - 1] ? d[i - 1][j - 1] + 1 : Math.max(d[i - 1][j], d[i][j - 1]);
+      const m = d[got.length][truth.length];
+      return `${got.length} written · ${got.length - m} wrong · ${truth.length - m} missed`;
+    };
+    rows.push({ song: song.name, played: truth.length, ghosts: song.ghosts?.length ?? 0, 'filter off': count(false), 'filter on': count(true) });
+  }
+  return rows;
+}
+
+/**
+ * Everything the finger-lift filter is judged on: the lift takes (filter off/on), how many REAL
+ * notes it removes from each bench song (must stay 0), and the low E scale as written vs played.
+ */
+export async function ghostReport(opts = {}) {
+  const R = await import('../js/rhythm.js');
+  const opens = [40, 45, 50, 55, 59, 64];
+  const lines = (await liftCheck(opts)).map((r) => `${r.song}: off ${r['filter off']} | on ${r['filter on']}`);
+  lines.push('');
+  for (const s of SONGS) {
+    const f = await notesFor(s.name, opts);
+    const kept = new Set(R.dropReleaseNoise(f.notes, opens).map((n) => `${n.start}:${n.midi}`));
+    const dropped = f.notes.filter((n) => !kept.has(`${n.start}:${n.midi}`));
+    const real = (n) => f.truth.some((t) => t.midi === n.midi && Math.abs(t.start - n.start) < 0.06);
+    lines.push(`${s.name}: real notes removed ${dropped.filter(real).map((n) => `${n.midi}@${n.start.toFixed(2)}`).join(' ') || 0}, junk removed ${dropped.filter((n) => !real(n)).length}`);
+  }
+  const f = await notesFor(LIFT_SONGS[0].name, opts);
+  const ev = R.quantize(f.notes.filter((n) => n.midi >= 38), { bpm: 100, beat0: f.lead, meter: 4 }, { simple: true, openStrings: opens }).events;
+  lines.push('', `written: ${ev.map((e) => e.keys.join('+')).join(' ')}`, `played:  ${f.truth.map((t) => t.midi).join(' ')}`);
+  return lines.join('\n');
 }

@@ -226,28 +226,186 @@ export function quantize(notes, tempo, { simple = false, openStrings = [], relea
  * the same note into the note it came from). Used by Simple detail.
  */
 export function dropReleaseNoise(notes, openStrings = [], { window = 0.8 } = {}) {
-  const opens = new Set(openStrings);
   const sorted = [...notes].sort((a, b) => a.start - b.start).map((n) => ({ ...n }));
   const amp = (n) => n.amp ?? 0.6;
+  const { chordy, overtone } = noteRoles(sorted);
   const out = [];
-  // a note that starts together with a different note (or with a lower octave, as in a power chord;
-  // an overtone above doesn't count) is part of a chord or strum, never finger-lift noise
-  const inChord = (n) => sorted.some((o) => o !== n && Math.abs(o.start - n.start) < 0.06 && ((o.midi - n.midi) % 12 !== 0 || o.midi < n.midi));
-  for (const n of sorted) {
-    if (inChord(n)) { out.push(n); continue; }
-    // the note played just before (the transcriber often ends a note early, as it fades, so the
-    // finger lifting off can come a good half-second after the note's recorded end)
+  sorted.forEach((n, i) => {
+    if (chordy[i] || overtone[i]) { out.push(n); return; } // chords and strums are never finger-lift noise (overtones: see below)
+    // the note played just before (the transcriber often ends a note early, as it fades)
     const parent = [...out].reverse().find((p) => p.start < n.start - 0.02);
     const gap = parent ? n.start - parent.end : Infinity;
     if (parent && gap >= -0.1 && gap <= window && amp(parent) > amp(n)) {
       const ratio = amp(n) / amp(parent);
-      if (n.midi === parent.midi && ratio < 0.85 && gap <= 0.15) { parent.end = Math.max(parent.end, n.end); continue; } // same note ringing on
-      if (opens.has(n.midi) && n.midi !== parent.midi && ratio < 0.86) continue;                                     // open string as the finger lifts
-      if (ratio < 0.65 && n.end - n.start < 0.25) continue;                                                          // a short scratch
+      if (n.midi === parent.midi && ratio < 0.85 && gap <= 0.15) { parent.end = Math.max(parent.end, n.end); return; } // same note ringing on
+      if (ratio < 0.65 && n.end - n.start < 0.25) return;                                                          // a short scratch
     }
     out.push(n);
-  }
-  return out;
+  });
+  // then the intention scale decides about every lone note (open strings ringing as a finger lifts...)
+  const scores = intentionScores(out, openStrings);
+  const roles = noteRoles(out);
+  const gone = new Set();
+  let dropped = null;
+  out.forEach((n, i) => {
+    if (roles.overtone[i]) return;
+    // the same ghost sounding twice in a row (0, 0) goes with the first
+    const twice = dropped && n.midi === dropped.midi && n.start - dropped.start < 0.6 && !scores[i].chord;
+    if (scores[i].intent < INTENT_KEEP || twice) { gone.add(n); dropped = n; }
+  });
+  // an overtone goes with the note it belongs to
+  // and the note before flickering back on at the moment of a lift (a short blip with the ghost) is just that note
+  const ghostAt = (t) => [...gone].some((d) => Math.abs(d.start - t) < TOGETHER);
+  return out.filter((n, i) => {
+    if (gone.has(n)) return false;
+    if (roles.overtone[i]) return !gone.has(out[roles.base[i]]);
+    const p = out.slice(0, i).reverse().find((o) => o.midi === n.midi);
+    if (p && n.end - n.start < 0.3 && amp(n) < amp(p) && Math.abs(n.start - p.end) < 0.1 && ghostAt(n.start)) { p.end = Math.max(p.end, n.end); return false; }
+    return true;
+  });
+}
+
+/** Below this intention score a lone note is treated as an accident (finger-lift noise) and dropped. */
+export const INTENT_KEEP = 0.55;
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const TOGETHER = 0.06; // notes starting this close together sound as one
+const HARMONICS = [12, 19, 24, 28, 31, 36]; // semitones above a note where its overtones sit
+
+/**
+ * For notes sorted by start: which are faint overtones (echoes) of a louder, lower note that is
+ * sounding when they start (base = that note's index), and which are part of a real chord or strum
+ * (another real note starts with them; a lower octave counts, as in a power chord; a tiny blip doesn't).
+ */
+function noteRoles(notes) {
+  const amp = (n) => n.amp ?? 0.6;
+  const base = notes.map((n) => {
+    const j = notes.findIndex((o) => {
+      if (o === n || n.start - o.start > 1.5 || o.start >= n.start + TOGETHER) return false;
+      const r = amp(n) / amp(o), dur = n.end - n.start;
+      if (!HARMONICS.includes(n.midi - o.midi) || o.end <= n.start) return false;
+      // starting with the note: a fainter copy; starting later (re-sounding as it rings): much fainter, or a blip
+      return Math.abs(n.start - o.start) < TOGETHER ? r < 0.65 : r < 0.5 || (r < 0.65 && dur < 0.3 && n.start - o.start < 0.6);
+    });
+    return j >= 0 ? j : null;
+  });
+  const overtone = base.map((j) => j != null);
+  const chordy = notes.map((n, i) => !overtone[i] && notes.some((o, j) => o !== n && !overtone[j] && Math.abs(o.start - n.start) < TOGETHER
+    && ((o.midi - n.midi) % 12 !== 0 || o.midi < n.midi) && (o.end - o.start >= 0.1 || amp(o) >= 0.5 * amp(n))));
+  return { overtone, chordy, base };
+}
+
+/**
+ * The intention scale: how intentional does each note look? 1 = clearly played on purpose,
+ * 0 = clearly an accident. Finger-lift noise can be as loud and as sharp as a real note, so the
+ * main evidence is whether it FITS. Timing is judged on onsets (notes struck together = one onset).
+ *  misfit (needed before a note can be called an accident):
+ *   - late: it lands late between its neighbours, just before the next note
+ *   - squeezed: late inside a gap that the rest of the rhythm treats as one beat (stronger)
+ *     (a scale of even notes with an extra one just before the next fret)
+ *   - spike: it leaps away from the tune and the tune carries on where it was (14, 0, 15);
+ *     weaker evidence, since real riffs leap too
+ *   - trailing: the last sound of the take is an open string ringing as the finger comes off
+ *   - intrusion: in a single-note line, an open string sounding together with the next note
+ *     (the finger lifted just as the next note was played), so it looks like a 2-note chord
+ *  support (makes a misfit more convincing):
+ *   - openLift: it's the open pitch of a string the note before could have been fretted on
+ *     (lifting the finger lets that string ring open)
+ *   - release: it starts about when the note before ends
+ *  weakness (how was it played?): quieter than the notes around it, a softer attack than its
+ *   neighbours (the transcriber's onset confidence), or very short
+ * A pedal note (the same pitch coming back like clockwork, in the middle of the beat) is a pattern: misfit halved.
+ * Chords and overtones score 1 (overtones go with their note).
+ * Returns [{ intent, misfit, support, weakness, chord? }] in the same order as `notes` (sorted by start).
+ */
+export function intentionScores(notes, openStrings = []) {
+  const opens = [...new Set(openStrings)];
+  const amp = (n) => n.amp ?? 0.6;
+  const { overtone, chordy } = noteRoles(notes);
+  // onsets: the real notes (no overtones) grouped by when they start
+  const groups = [];
+  notes.forEach((n, i) => {
+    if (overtone[i]) return;
+    const g = groups[groups.length - 1];
+    if (g && n.start - g.start < TOGETHER) g.notes.push(n); else groups.push({ start: n.start, notes: [n] });
+  });
+  const groupOf = new Map();
+  groups.forEach((g, k) => g.notes.forEach((n) => groupOf.set(n, k)));
+  const top = (g) => g.notes.reduce((a, b) => (amp(b) > amp(a) ? b : a));
+  return notes.map((n, i) => {
+    if (overtone[i]) return { intent: 1, misfit: 0, support: 0, weakness: 0, chord: true };
+    const k = groupOf.get(n);
+    // neighbouring onsets, skipping ones that are only this same pitch again (a doubled ghost 0, 0)
+    let pk = k - 1; while (pk >= 0 && groups[pk].notes.every((o) => o.midi === n.midi)) pk--;
+    let nk = k + 1; while (nk < groups.length && groups[nk].notes.every((o) => o.midi === n.midi)) nk++;
+    const pg = groups[pk], ng = groups[nk];
+    // intrusion: in a single-note line, an open string arriving together with the next note, well
+    // below a tune that just carries on (54 → 52+0 → 51): the finger lifted as the next note was played
+    let intrusion = 0;
+    const g = groups[k].notes;
+    if (g.length === 2) {
+      const other = g.find((o) => o !== n), prev = pg?.notes[0];
+      // a single-note line leads up to it (a pair holding this same ghost pitch counts: 0, 0)
+      const g2 = pk >= 1 ? groups[pk - 1].notes : [];
+      const line = g2.length === 1 || (g2.length === 2 && g2.some((o) => o.midi === n.midi));
+      if (other.midi > n.midi && opens.includes(n.midi) && line && pg?.notes.length === 1 && (!ng || ng.notes.length === 1)
+        && prev.midi - n.midi >= 5 && prev.midi - n.midi <= 24 && Math.abs(other.midi - prev.midi) <= 4
+        // the tune moves on, or the note before just flickers back on for a moment as the finger lifts
+        && (other.midi !== prev.midi || (other.end - other.start < 0.3 && amp(other) < amp(prev)))) intrusion = 0.8;
+    }
+    if (chordy[i] && !intrusion) return { intent: 1, misfit: 0, support: 0, weakness: 0, chord: true };
+    const lo = Math.max(0, k - 4), hi = Math.min(groups.length, k + 5);
+    const around = groups.slice(lo, hi).flatMap((g) => g.notes).filter((o) => o !== n);
+
+    let spike = 0, squeezed = 0, late = 0, openLift = 0, release = 0, frac = null;
+    if (pg && ng) {
+      frac = (n.start - pg.start) / (ng.start - pg.start);               // where it lands between its neighbours
+      late = clamp01((frac - 0.6) / 0.25);                                // a lift comes just before the next note
+      // a leap only means something between lone notes (a melody), not around chords
+      if (pg.notes.length === 1 && ng.notes.length === 1) {
+        const prev = pg.notes[0], next = ng.notes[0];
+        const step = Math.abs(next.midi - prev.midi);
+        const away = Math.min(Math.abs(n.midi - prev.midi), Math.abs(n.midi - next.midi));
+        spike = step <= 4 ? clamp01((away - 4) / 6) : 0;
+      }
+      // gaps between onsets nearby (with this note in, so a regular pedal note sets its own pulse)
+      const iois = [];
+      for (let j = lo + 1; j < hi; j++) iois.push(groups[j].start - groups[j - 1].start);
+      const med = median(iois);
+      const span = ng.start - pg.start;
+      if (med > 0 && Math.abs(span / med - 1) < 0.3) {                   // without this note, the rhythm is even
+        squeezed = clamp01(((n.start - pg.start) / span - 0.5) / 0.3);   // and it lands late in that gap
+      }
+    }
+    if (pg) {
+      const held = pg.notes.filter((p) => p.midi > n.midi);
+      if (held.some((p) => opens.some((o) => o === n.midi && p.midi - o >= 1 && p.midi - o <= 24))) openLift = 1;
+      const gap = n.start - Math.max(...pg.notes.map((p) => p.end));
+      if (held.length && gap >= -0.4 && gap <= 0.8) release = 1;
+    }
+    // trailing: the very last thing heard is an open string ringing as the finger comes off at the end
+    const trailing = !ng && k === groups.length - 1 && k > 0 && openLift && release && n.end - n.start < 2.5 ? 0.7 : 0;
+    let misfit = Math.max(squeezed, 0.75 * late, 0.6 * spike, intrusion, trailing);
+    // a pedal note: the same pitch comes back like clockwork (equal gaps before and after) and sits
+    // in the middle of the beat. Ghosts come back irregularly and land late.
+    const same = notes.filter((o, j) => o.midi === n.midi && !overtone[j]);
+    const before = [...same].reverse().find((o) => o.start < n.start - 0.4), after = same.find((o) => o.start > n.start + 0.4);
+    const d1 = before ? n.start - before.start : 0, d2 = after ? after.start - n.start : 0;
+    const pedal = !!(before && after) && Math.abs(d1 - d2) <= 0.15 * Math.max(d1, d2) && (frac == null || Math.abs(frac - 0.5) < 0.15);
+    if (pedal) misfit *= 0.5;
+    const support = openLift * 0.7 + release * 0.3;
+
+    const ref = Math.max(pg ? amp(top(pg)) : 0, median(around.map(amp))) || amp(n);
+    const quiet = clamp01((1.05 - amp(n) / ref) / 0.45);
+    const ons = around.map((o) => o.onset).filter((x) => x != null);
+    const soft = n.onset == null || !ons.length ? 0.3 : clamp01((median(ons) - n.onset) / 0.2);
+    const short = clamp01((0.3 - (n.end - n.start)) / 0.25);
+    const weakness = clamp01(quiet * 0.5 + soft * 0.3 + short * 0.2);
+
+    const doubt = misfit * (0.35 + 0.65 * support) * (0.6 + 0.4 * weakness) / 0.6; // 0 ... 1.67
+    return { intent: clamp01(1 - doubt * 0.6), misfit, support, weakness,
+      why: { spike, squeezed, late, intrusion, trailing, pedal, openLift, release, quiet, soft, short, sizes: [pk > 0 ? groups[pk - 1].notes.length : 0, pg?.notes.length ?? 0, g.length, ng?.notes.length ?? 0] } };
+  });
 }
 
 /**
