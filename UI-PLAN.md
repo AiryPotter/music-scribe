@@ -64,6 +64,9 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - Ringing-note de-duplication, faint-note filter, bass-led time signature, half-tempo check, chained strum grouping.
 - Overall: notes 75% → 82%, exact 45% → 55%, time signature 21/24 → 24/24. Drop D power chords got worse (see ACCURACY.md).
 
+## Fix log ✅ done 2026-11-17
+- **Fixes** button opens "Mozart's mistakes": every correction counted by kind, with details; Save log (.json, no audio or titles); Clear log with Undo.
+
 ## Next (needs a guitar)
 - Record real takes on the Pixel and iPhone, compare with the bench, re-tune thresholds.
 - Strumming patterns and repeated power chords are the weakest areas.

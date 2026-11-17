@@ -13,6 +13,7 @@ import * as E from './edits.js';
 import { playPluck } from './pluck.js';
 import { Player } from './player.js';
 import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
+import * as FX from './fixlog.js';
 import { createExportSheet } from './exportui.js';
 import { PROJECT_FORMAT, validateProject } from './exporters.js';
 
@@ -31,7 +32,7 @@ const ui = {
   bpm: $('bpmInput'), bpmUp: $('bpmUp'), bpmDown: $('bpmDown'), bpmHalf: $('bpmHalf'), bpmDouble: $('bpmDouble'),
   meterSel: $('meterSelect'),
   zoomIn: $('zoomIn'), zoomOut: $('zoomOut'), zoomReset: $('zoomReset'), zoomFit: $('zoomFit'),
-  undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'), takes: $('takesBtn'), play: $('playBtn'), guitarToggle: $('guitarToggle'), guitarTools: $('guitarTools'),
+  undo: $('undoBtn'), redo: $('redoBtn'), exportBtn: $('exportBtn'), takes: $('takesBtn'), fixes: $('fixesBtn'), play: $('playBtn'), guitarToggle: $('guitarToggle'), guitarTools: $('guitarTools'),
   tuning: $('tuningSelect'), capo: $('capoSelect'), custom: $('customTuning'),
   ed: $('editor'), edWhat: $('edWhat'), edWhere: $('edWhere'), edPrev: $('edPrev'), edNext: $('edNext'), edClose: $('edClose'),
   edNote: $('edNoteTools'), edRest: $('edRestTools'), edChips: $('edChips'), edPitch: $('edPitch'),
@@ -454,6 +455,7 @@ async function analyzeTake() {
   requantize(t);
   t.id = newTakeId();
   t.createdAt = Date.now();
+  FX.registerTake(t.id, { source: t.source, notes: t.score.events.reduce((n, e) => n + e.notes.length, 0), bpm: t.score.tempo.bpm, meter: t.score.tempo.meter, tuning: guitar.id, capo: guitar.capo });
   layoutTake(t);
   mozart.set('bow');
   mozart.say('Bravo!');
@@ -567,7 +569,9 @@ function onTempoEdit(newBpm) {
   store.set('bpm', String(bpm));
   if (!take?.events || session) return;
   if (take.score && take.score.tempo.bpm === bpm) return;
+  const from = take.score?.tempo.bpm;
   rethinkRhythm(() => { take.tempo.bpm = bpm; });
+  if (from) logFix({ kind: 'tempo', from: Math.round(from), to: bpm, ratio: Math.abs(bpm / from - 0.5) < 0.02 ? 0.5 : Math.abs(bpm / from - 2) < 0.04 ? 2 : +(bpm / from).toFixed(2) });
 }
 /** Re-read the rhythm (tempo/meter change). Undo-able, since it replaces any note edits. */
 function rethinkRhythm(change) {
@@ -589,7 +593,9 @@ ui.bpmDouble.addEventListener('click', () => onTempoEdit(clampBpm(ui.bpm.value) 
 ui.meterSel.addEventListener('change', () => {
   store.set('meter', ui.meterSel.value);
   if (!take?.events || session) return;
+  const from = take.score?.tempo.meter;
   rethinkRhythm(() => {});
+  if (from && take.score.tempo.meter !== from) logFix({ kind: 'meter', from, to: take.score.tempo.meter });
 });
 
 // ---------- analysis loop ----------
@@ -727,8 +733,10 @@ const WRITING_MSG = 'Mozart is still writing. Wait a moment, or tap Clear to sto
 function undo() {
   if (writing()) { showToast(WRITING_MSG); return; }
   if (session || busy || !history.past.length) return;
+  if (take?.id) FX.unrecord(take.id, history.past.length);
   history.future.push(snapshot());
   restore(history.past.pop());
+  refreshFixCount();
 }
 function redo() {
   if (writing()) { showToast(WRITING_MSG); return; }
@@ -912,10 +920,18 @@ function nav(dir) {
 }
 
 /** Make a change to the score (undo-able), then redraw. */
-function edit(fn, { listen = false } = {}) {
+function edit(fn, { listen = false, what = null } = {}) {
   if (!take?.score || session || !sel) return;
+  const before = sel.kind === 'ev' ? JSON.parse(JSON.stringify(take.score.events[sel.idx])) : null;
+  const focusBefore = sel.focus;
+  const restAt = sel.kind === 'rest' ? sel.at : null;
   pushHistory();
   sel = fn(take.score, sel) || sel;
+  if (what) {
+    const after = sel.kind === 'ev' ? take.score.events[sel.idx] : null;
+    const changed = JSON.stringify(before) !== JSON.stringify(after) || restAt !== null;
+    if (changed) logFix(FX.describe(what, before, after, focusBefore));
+  }
   take.edited = true;
   layoutTake(take);
   if (listen && sel.kind === 'ev') {
@@ -997,7 +1013,7 @@ function cycleString(dir) {
   const i = opts.findIndex((o) => o.stringIndex === cur);
   const next = i < 0 ? opts[0] : opts[(i + dir + opts.length) % opts.length];
   if (next.stringIndex === cur) return;
-  edit((s, x) => E.setString(s, x, next.stringIndex));
+  edit((s, x) => E.setString(s, x, next.stringIndex), { what: 'string' });
 }
 
 ui.score.addEventListener('click', (e) => {
@@ -1038,13 +1054,13 @@ ui.edChips.addEventListener('click', (e) => {
 });
 ui.edLens.addEventListener('click', (e) => {
   const b = e.target.closest('[data-len]');
-  if (b && !b.disabled) edit((s, x) => E.setLength(s, x, Number(b.dataset.len)));
+  if (b && !b.disabled) edit((s, x) => E.setLength(s, x, Number(b.dataset.len)), { what: 'length' });
 });
 ui.edChord.addEventListener('change', () => {
   if (sel?.kind !== 'ev') return;
   const v = ui.edChord.value.trim();
   const auto = take.placed[sel.idx]?.auto;
-  edit((s, x) => E.setChord(s, x, !v || v === auto ? undefined : v));
+  edit((s, x) => E.setChord(s, x, !v || v === auto ? undefined : v), { what: 'chord' });
 });
 ui.edChord.addEventListener('keydown', (e) => { if (e.key === 'Enter') ui.edChord.blur(); });
 
@@ -1053,24 +1069,24 @@ function act(name) {
   if (sel.kind === 'rest') {
     if (name === 'fill') {
       const midi = E.guessPitch(take.score, sel.at);
-      edit((s, x) => E.fillRest(s, x.at, x.len, midi), { listen: 'note' });
+      edit((s, x) => E.fillRest(s, x.at, x.len, midi), { listen: 'note', what: 'fill' });
     }
     return;
   }
   switch (name) {
-    case 'semi-': return edit((s, x) => E.shiftPitch(s, x, -1), { listen: 'note' });
-    case 'semi+': return edit((s, x) => E.shiftPitch(s, x, 1), { listen: 'note' });
-    case 'oct-': return edit((s, x) => E.shiftPitch(s, x, -12), { listen: 'note' });
-    case 'oct+': return edit((s, x) => E.shiftPitch(s, x, 12), { listen: 'note' });
+    case 'semi-': return edit((s, x) => E.shiftPitch(s, x, -1), { listen: 'note', what: 'pitch' });
+    case 'semi+': return edit((s, x) => E.shiftPitch(s, x, 1), { listen: 'note', what: 'pitch' });
+    case 'oct-': return edit((s, x) => E.shiftPitch(s, x, -12), { listen: 'note', what: 'pitch' });
+    case 'oct+': return edit((s, x) => E.shiftPitch(s, x, 12), { listen: 'note', what: 'pitch' });
     case 'str-': return cycleString(-1);
     case 'str+': return cycleString(1);
-    case 'add': return edit(E.addNote, { listen: 'chord' });
-    case 'remove': return edit(E.removeNote);
-    case 'rest': return edit(E.makeRest);
-    case 'join': return edit(E.join);
-    case 'split': return edit((s, x) => E.split(s, x, take.pieceStarts.get(x.idx) || []));
-    case 'chord-auto': return edit((s, x) => E.setChord(s, x, undefined));
-    case 'chord-hide': return edit((s, x) => E.setChord(s, x, ''));
+    case 'add': return edit(E.addNote, { listen: 'chord', what: 'add' });
+    case 'remove': return edit(E.removeNote, { what: 'remove' });
+    case 'rest': return edit(E.makeRest, { what: 'rest' });
+    case 'join': return edit(E.join, { what: 'join' });
+    case 'split': return edit((s, x) => E.split(s, x, take.pieceStarts.get(x.idx) || []), { what: 'split' });
+    case 'chord-auto': return edit((s, x) => E.setChord(s, x, undefined), { what: 'chord' });
+    case 'chord-hide': return edit((s, x) => E.setChord(s, x, ''), { what: 'chord' });
     case 'listen': return audition(take.score.events[sel.idx].notes.map((n) => n.midi));
     default: return undefined;
   }
@@ -1086,7 +1102,7 @@ document.addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
   if (mod && !typing && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); return; }
   if (mod && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
-  if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && $('takesSheet').hidden && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
+  if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && $('takesSheet').hidden && $('fixesSheet').hidden && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
   if (!sel || typing || mod || e.altKey) return;
   if (e.key === 'Enter' && (e.target.tagName === 'BUTTON' || sel.kind !== 'rest')) return;
   const keys = {
@@ -1264,6 +1280,7 @@ async function renderTakes() {
 let takesCache = [];
 function openTakes() {
   if (session) return;
+  if (!$('fixesSheet').hidden) closeFixes();
   flushSave();
   closeEditor();
   if (exportSheet.isOpen) exportSheet.close();
@@ -1319,6 +1336,69 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('take
 window.addEventListener('pagehide', flushSave);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
 refreshTakeCount();
+
+// ---------- Mozart's mistakes: log of corrections (no audio) ----------
+function logFix(fix) {
+  if (!take?.id || !fix) return;
+  FX.record(take.id, history.past.length, fix);
+  refreshFixCount();
+}
+function refreshFixCount() {
+  const n = FX.summary().fixes; // same count as the Fixes screen (▲▲ on one note = one fix)
+  ui.fixes.textContent = n ? `Fixes (${n})` : 'Fixes';
+}
+function renderFixes() {
+  const s = FX.summary();
+  $('fxTotals').textContent = s.fixes
+    ? `${s.fixes} fix${s.fixes === 1 ? '' : 'es'} across ${s.editedTakes} take${s.editedTakes === 1 ? '' : 's'}` + (s.written ? ` · Mozart has written ${s.written} notes in ${s.takes} take${s.takes === 1 ? '' : 's'}` : '')
+    : 'No fixes yet. When you correct a note Mozart got wrong, it’s counted here.';
+  const max = Math.max(1, ...s.rows.map((r) => r.count));
+  $('fxList').innerHTML = s.rows.map((r) => `
+    <li class="fx-row">
+      <div class="fx-top"><strong>${r.name}</strong><span>${r.count}</span></div>
+      <div class="fx-bar"><i style="width:${Math.round((r.count / max) * 100)}%"></i></div>
+      ${r.details.length ? `<small>${r.details.slice(0, 3).map(([d, n]) => `${n} × ${d}`).join(' · ')}</small>` : ''}
+    </li>`).join('');
+  $('fxSave').disabled = !s.fixes;
+  $('fxClear').disabled = !s.fixes;
+}
+function openFixes() {
+  if (session) return;
+  closeEditor();
+  if (exportSheet.isOpen) exportSheet.close();
+  if (!$('takesSheet').hidden) closeTakes();
+  renderFixes();
+  $('fixesSheet').hidden = false;
+  document.body.classList.add('editing');
+  requestAnimationFrame(() => document.body.style.setProperty('--tray-h', `${$('fixesSheet').offsetHeight}px`));
+}
+function closeFixes() {
+  $('fixesSheet').hidden = true;
+  document.body.classList.remove('editing');
+}
+ui.fixes.addEventListener('click', openFixes);
+$('fxClose').addEventListener('click', closeFixes);
+$('fxSave').addEventListener('click', async () => {
+  const blob = FX.exportLog();
+  const name = `Music Scribe fixes ${new Date().toISOString().slice(0, 10)}.json`;
+  const file = new File([blob], name, { type: 'application/json' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; } catch (err) { if (err?.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  showToast(`Saved ${name}`);
+});
+$('fxClear').addEventListener('click', () => {
+  const old = FX.clearLog();
+  renderFixes(); refreshFixCount();
+  showToast('Fix log cleared', () => { FX.restoreLog(old); refreshFixCount(); if (!$('fixesSheet').hidden) renderFixes(); });
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('fixesSheet').hidden) closeFixes(); });
+refreshFixCount();
 
 // ---------- iPhone ----------
 // Safari may hold audio until the next touch (or pause it after a call); any tap wakes it.

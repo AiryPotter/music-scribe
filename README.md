@@ -68,6 +68,9 @@ Tap **Export** (next to Clear) → **Seal & send**:
 ## Accuracy (without a guitar yet)
 A test bench of 8 guitar-like songs (`app/dev/bench.js`) measures how well Mozart writes things out. Tuning on 2026-11-17 raised notes found right from **75% to 82%** and exactly-right notes/chords from **45% to 55%**, and the 3/4 waltz is now read correctly. Full before/after table, how to run the bench, and known weak spots: `ACCURACY.md`.
 
+## Mozart's mistakes (fix log)
+The **Fixes** button (manuscript header) shows what you've corrected: wrong extra notes, missed notes, wrong pitch (with how far off), wrong length, notes written as two or joined, wrong tempo (halved/doubled) or time signature, string choice and chord names. Every fix in the note editor is counted automatically; Undo takes it back out; ▲▲ on one note counts as one fix. **Save log** makes a small .json file (counts and note numbers only: no audio, no song titles) you can share for re-tuning; **Clear log** has an Undo. Kept in this browser on this device.
+
 ## Privacy: no audio is kept
 The only thing Music Scribe keeps is the written music. The recording lives in memory just long enough for Mozart to write out the notes, then it is discarded. It is never saved, exported, uploaded, or included in project files. There is no audio export.
 

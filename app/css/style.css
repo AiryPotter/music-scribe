@@ -925,3 +925,18 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   #editor .ed-head .mini { min-width: 40px; height: 40px; min-height: 40px; }
   .score-tools { gap: 6px 8px; }
 }
+
+/* ---------- Mozart's mistakes (fix log) ---------- */
+.fx-totals { margin: 2px 0 8px; font-size: 15px; color: var(--text-soft); font-style: italic; }
+.fx-list { list-style: none; margin: 0; padding: 0; }
+.fx-row { padding: 7px 0; border-top: 1px dashed color-mix(in srgb, var(--card-edge) 60%, transparent); }
+.fx-top { display: flex; justify-content: space-between; gap: 8px; font-size: 16px; }
+.fx-top span { font-weight: 700; color: var(--burgundy); }
+.fx-bar { height: 8px; margin: 4px 0 3px; border-radius: 4px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.fx-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), var(--burgundy)); }
+.fx-row small { font-size: 13px; color: var(--text-soft); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fx-top span { color: #e7b45a; }
+}
+.head-actions .ghost { white-space: nowrap; }
+@media (max-width: 480px) { .head-actions { flex-wrap: wrap; justify-content: flex-end; } }

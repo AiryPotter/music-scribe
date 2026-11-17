@@ -40,3 +40,6 @@ The original demo recording through the real app gives exactly the same result a
 - **Strumming patterns** are still weak (17% exact): up-strums that catch only some strings are hard for the model.
 - **Overtone ghosts** an octave or two above real notes are still the main source of wrong extra notes.
 - **All of this is synthetic.** Real guitars, rooms and mics will behave differently. The first real recordings should be checked against these numbers, and the thresholds re-tuned if needed.
+
+## Re-tuning from real playing
+Once there's a guitar: record, fix what Mozart got wrong, then **Fixes → Save log** and share the file. The biggest counts show which rule to re-tune: extra overtone notes → the ghost filter; "one note written as two" → `splitEnergy`; double tempo → the half-tempo check; and so on.

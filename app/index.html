@@ -192,6 +192,7 @@
           <button id="playBtn" class="mini icon play" type="button" aria-label="Play" title="Play what is written (Space)" disabled>▶&#xFE0E;</button>
           <button id="undoBtn" class="mini icon" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>↶</button>
           <button id="redoBtn" class="mini icon" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>↷</button>
+          <button id="fixesBtn" class="ghost" type="button" title="Mozart’s mistakes: what you’ve corrected">Fixes</button>
           <button id="takesBtn" class="ghost" type="button" title="Your saved takes">Takes</button>
           <button id="exportBtn" class="ghost seal-btn" type="button" disabled title="Export, share or save to Dropbox">Export</button>
         </div>
@@ -305,6 +306,26 @@
     <div id="edRestTools" class="ed-body" hidden>
       <div class="ed-row">
         <button class="ed-btn primary" type="button" data-act="fill">+ Add a note here</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mozart's mistakes: what you corrected (no audio, kept on this device) -->
+  <section id="fixesSheet" class="editor sheet" hidden aria-label="Mozart's mistakes">
+    <div class="ed-head">
+      <div class="ed-title">
+        <strong>Mozart’s mistakes</strong>
+        <span>What you corrected · on this device only · never audio</span>
+      </div>
+      <button id="fxClose" class="mini" type="button" aria-label="Close Mozart's mistakes">✕</button>
+    </div>
+    <div class="ed-body">
+      <p id="fxTotals" class="fx-totals"></p>
+      <ul id="fxList" class="fx-list"></ul>
+      <p class="hint small">Each fix you make in the note editor (and tempo or time-signature changes) is counted here, so Mozart can be re-tuned to what he gets wrong. Undo takes a fix back out.</p>
+      <div class="ex-actions">
+        <button id="fxSave" class="ed-btn primary" type="button">Save log</button>
+        <button id="fxClear" class="ed-btn" type="button">Clear log</button>
       </div>
     </div>
   </section>
