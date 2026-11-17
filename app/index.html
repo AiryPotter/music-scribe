@@ -188,7 +188,6 @@
       <div class="score-head">
         <h2>Thy Manuscript</h2>
         <span id="noteCount" class="note-count">0 notes</span>
-        <button id="clearBtn" class="clear-btn" type="button" title="Clear the manuscript (Undo brings it back)">Clear</button>
         <div class="head-actions">
           <button id="playBtn" class="mini icon play" type="button" aria-label="Play" title="Play what is written (Space)" disabled>▶&#xFE0E;</button>
           <button id="undoBtn" class="mini icon" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>↶</button>
@@ -277,6 +276,13 @@
         </div>
         <div id="score" class="score"></div>
       </div>
+      <!-- Tools under the manuscript (room for more) -->
+      <div id="scoreTools" class="score-tools" role="toolbar" aria-label="Manuscript tools" hidden>
+        <button id="selectTool" class="tool-btn" type="button" aria-pressed="false" title="Pick several notes: each tap adds or removes one">Select</button>
+        <button id="removeTool" class="tool-btn" type="button" disabled title="Take the selected note(s) out; the rest slides up to close the gap (Delete)">Remove note</button>
+        <span class="tools-gap"></span>
+        <button id="clearBtn" class="tool-btn danger" type="button" title="Clear the manuscript (Undo brings it back)">Clear Thy Manuscript</button>
+      </div>
       <p id="scoreHint" class="hint small">While you play, a quick preview appears. Press Cease and Mozart writes the accurate version: real rhythm, tempo and chords. Then tap any note to hear it and fix it.</p>
     </section>
   </main>
@@ -298,9 +304,11 @@
       <div class="ed-row">
         <span class="ed-label">Pitch</span>
         <button class="ed-btn" type="button" data-act="oct-" aria-label="Down an octave">−8ve</button>
-        <button class="ed-btn big" type="button" data-act="semi-" aria-label="Down a semitone">▼</button>
+        <button class="ed-btn" type="button" data-act="semi-" aria-label="Down one fret" title="Down one fret (Shift+↓)">♭</button>
+        <button class="ed-btn big" type="button" data-act="step-" aria-label="Down one step in the key" title="Down a step in the key (↓, S or −)">▼</button>
         <output id="edPitch" class="ed-value">—</output>
-        <button class="ed-btn big" type="button" data-act="semi+" aria-label="Up a semitone">▲</button>
+        <button class="ed-btn big" type="button" data-act="step+" aria-label="Up one step in the key" title="Up a step in the key (↑, W or +)">▲</button>
+        <button class="ed-btn" type="button" data-act="semi+" aria-label="Up one fret" title="Up one fret (Shift+↑)">♯</button>
         <button class="ed-btn" type="button" data-act="oct+" aria-label="Up an octave">+8ve</button>
       </div>
       <div class="ed-row">
@@ -310,6 +318,7 @@
       <div class="ed-row ed-actions">
         <button class="ed-btn" type="button" data-act="add" title="Add a note: the selected note doubled an octave up">+ Note</button>
         <button class="ed-btn" type="button" data-act="remove">− Note</button>
+        <button class="ed-btn" type="button" data-act="delete" title="Take it out; the rest slides up (Delete)">Remove</button>
         <button class="ed-btn" type="button" data-act="rest">Make rest</button>
         <button class="ed-btn" type="button" data-act="listen" aria-label="Hear it">🔊</button>
         <button id="edMoreBtn" class="ed-btn more" type="button" aria-expanded="false" aria-controls="edMore" title="String, chord name and ties">More <i aria-hidden="true">▾</i></button>

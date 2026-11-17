@@ -40,9 +40,9 @@ export function record(takeId, step, fix) {
 /** Undo took back the edit at this step: forget it. */
 export function unrecord(takeId, step) {
   const d = load();
-  const i = d.fixes.findLastIndex((f) => f.take === takeId && f.step === step);
-  if (i < 0) return;
-  d.fixes.splice(i, 1);
+  const left = d.fixes.filter((f) => !(f.take === takeId && f.step === step)); // an edit of several notes logs several fixes
+  if (left.length === d.fixes.length) return;
+  d.fixes = left;
   save(d);
 }
 

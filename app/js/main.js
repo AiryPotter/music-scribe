@@ -49,6 +49,8 @@ let picker = new FretPicker();
 let notes = [];          // live preview notes (audio-clock times)
 let take = null;         // last finished take: { notes, events, tempo, score, model, source } (rec = audio, only until the notes are written)
 let sel = null;          // editor selection (see edits.js)
+const picked = new Set(); // notes picked with the Select tool (event indexes)
+let selectMode = false;   // Select tool: each tap adds/removes a note instead of opening just that one
 let session = null;
 let tracker = null;
 let recorder = null;
@@ -568,9 +570,9 @@ function layoutTake(t, { quiet = false } = {}) {
   // tap targets: one per note/chord, one per rest
   t.refs = [];
   const evRef = new Map();
-  const isSel = (p) => !!sel && (sel.kind === 'ev'
+  const isSel = (p) => (!p.rest && picked.has(p.evIdx)) || (!!sel && (sel.kind === 'ev'
     ? p.evIdx === sel.idx
-    : p.rest && p.at >= sel.at && p.at < sel.at + sel.len);
+    : p.rest && p.at >= sel.at && p.at < sel.at + sel.len));
   const measures = bars.map((bar) => bar.map((p) => {
     if (p.rest) {
       const ref = t.refs.push({ kind: 'rest', at: p.restAt, len: p.restLen }) - 1;
@@ -725,7 +727,7 @@ function scheduleRender() {
     const empty = !take && !notes.length && !session;
     $('emptyHint').hidden = !empty;
     ui.score.hidden = empty;
-    ui.clear.hidden = empty;
+    $('scoreTools').hidden = empty;
     if (empty) {
       ui.exportBtn.disabled = true;
       ui.play.disabled = true;
@@ -1057,14 +1059,17 @@ function select(ref) {
   ui.ed.hidden = false;
   document.body.classList.add('editing');
   layoutTake(take, { quiet: true });
+  refreshTools();
   if (sel.kind === 'ev') audition(take.score.events[sel.idx].notes.map((n) => n.midi)); // hear what you tapped
 }
 function closeEditor({ relayout = true } = {}) {
   stopPlayback(); // Clear, Begin, Undo and opening a project all come through here
   if (!$('takesSheet').hidden) closeTakes();
   resumeFrom = null;
-  const had = !!sel;
+  const had = !!sel || picked.size > 0;
   sel = null;
+  picked.clear();
+  refreshTools();
   ui.ed.hidden = true;
   document.body.classList.remove('editing');
   if (had && relayout && take?.score && !session) layoutTake(take, { quiet: true });
@@ -1179,8 +1184,107 @@ function cycleString(dir) {
 ui.score.addEventListener('click', (e) => {
   const r = e.target.closest?.('[data-ref]');
   if (!r || !take?.refs || session) return;
-  select(take.refs[Number(r.dataset.ref)]);
+  const ref = take.refs[Number(r.dataset.ref)];
+  if (selectMode && ref?.kind === 'ev') { togglePick(ref.idx); return; }
+  picked.clear();
+  select(ref);
 });
+
+// ---------- Select tool, Remove, and moving notes along the key ----------
+/** The notes an edit applies to: everything picked with the Select tool, else the note being edited. */
+function targets() {
+  if (picked.size) return [...picked].sort((a, b) => a - b);
+  return sel?.kind === 'ev' ? [sel.idx] : [];
+}
+function togglePick(idx) {
+  if (picked.has(idx)) {
+    picked.delete(idx);
+    if (sel?.kind === 'ev' && sel.idx === idx) {
+      const other = [...picked].pop();
+      if (other === undefined) { closeEditor(); return; }
+      sel = { kind: 'ev', idx: other, focus: take.score.events[other].notes.length - 1 };
+    }
+    layoutTake(take, { quiet: true });
+    refreshTools();
+    return;
+  }
+  picked.add(idx);
+  select({ kind: 'ev', idx }); // opens the tray on it and plays it
+}
+function setSelectMode(on) {
+  selectMode = on;
+  if (!on && picked.size) {
+    // leaving the tool keeps editing just the note in the tray
+    picked.clear();
+    if (take?.score) layoutTake(take, { quiet: true });
+  }
+  refreshTools();
+}
+function refreshTools() {
+  const n = targets().length;
+  const tool = $('selectTool');
+  document.body.classList.toggle('selecting', selectMode);
+  tool.setAttribute('aria-pressed', String(selectMode));
+  tool.classList.toggle('on', selectMode);
+  tool.textContent = selectMode ? (picked.size ? `Select · ${picked.size}` : 'Select · tap notes') : 'Select';
+  const rm = $('removeTool');
+  rm.disabled = !n || !!session;
+  rm.textContent = n > 1 ? `Remove ${n} notes` : 'Remove note';
+}
+/** Take the target notes out of the manuscript and close the gap (undo-able). */
+function removeTargets() {
+  const idxs = targets();
+  if (!idxs.length || !take?.score || session) return;
+  pushHistory();
+  const gone = idxs.map((i) => JSON.parse(JSON.stringify(take.score.events[i])));
+  E.removeEvents(take.score, idxs);
+  gone.forEach((ev) => logFix(FX.describe('rest', ev, null))); // each was a wrong extra note
+  take.edited = true;
+  const first = Math.min(...idxs);
+  picked.clear();
+  const next = take.score.events[first] ? first : take.score.events.length - 1;
+  sel = next >= 0 && !selectMode ? { kind: 'ev', idx: next, focus: take.score.events[next].notes.length - 1 } : null;
+  if (!sel) { ui.ed.hidden = true; document.body.classList.remove('editing'); }
+  layoutTake(take);
+  refreshTools();
+  showToast(idxs.length > 1 ? `Removed ${idxs.length} notes` : 'Note removed', undo);
+}
+/**
+ * Move notes up/down: one step in the key (dir ±1), or one fret with byFret.
+ * One note being edited: just its focused note. Notes picked with Select: every note in them.
+ * You hear the new notes straight away.
+ */
+function moveTargets(dir, { byFret = false } = {}) {
+  if (!take?.score || session) return;
+  const fifths = take.score.key?.fifths ?? 0;
+  if (!picked.size) {
+    if (sel?.kind !== 'ev') return;
+    const note = take.score.events[sel.idx].notes[sel.focus];
+    if (!note) return;
+    const delta = byFret ? dir : E.keyStep(note.midi, dir, fifths) - note.midi;
+    edit((s, x) => E.shiftPitch(s, x, delta), { listen: 'note', what: 'pitch' });
+    return;
+  }
+  const idxs = targets();
+  pushHistory();
+  const heard = [];
+  for (const i of idxs) {
+    const ev = take.score.events[i];
+    const before = JSON.parse(JSON.stringify(ev));
+    const moved = ev.notes.map((n) => (byFret ? n.midi + dir : E.keyStep(n.midi, dir, fifths)));
+    if (moved.some((m) => m < 28 || m > 88)) continue;
+    ev.notes.forEach((n, k) => { n.midi = moved[k]; delete n.str; });
+    E.sortNotes(ev);
+    before.notes.forEach((_, k) => logFix(FX.describe('pitch', before, { notes: before.notes.map((n, j) => ({ midi: j === k ? moved[k] : n.midi })) }, k)));
+    heard.push(ev.notes.map((n) => n.midi));
+  }
+  take.edited = true;
+  layoutTake(take);
+  // play the moved notes one after another, like a little run
+  heard.slice(0, 12).forEach((m, k) => setTimeout(() => audition(m), k * 170));
+}
+$('selectTool').addEventListener('click', () => setSelectMode(!selectMode));
+$('removeTool').addEventListener('click', removeTargets);
 // keyboard access to the manuscript: Tab reaches it, ←→ move between notes, Enter/Space opens the editor
 ui.score.addEventListener('keydown', (e) => {
   const hit = e.target.closest?.('.hit');
@@ -1234,8 +1338,11 @@ function act(name) {
     return;
   }
   switch (name) {
-    case 'semi-': return edit((s, x) => E.shiftPitch(s, x, -1), { listen: 'note', what: 'pitch' });
-    case 'semi+': return edit((s, x) => E.shiftPitch(s, x, 1), { listen: 'note', what: 'pitch' });
+    case 'semi-': return moveTargets(-1, { byFret: true });
+    case 'semi+': return moveTargets(1, { byFret: true });
+    case 'step-': return moveTargets(-1);
+    case 'step+': return moveTargets(1);
+    case 'delete': return removeTargets();
     case 'oct-': return edit((s, x) => E.shiftPitch(s, x, -12), { listen: 'note', what: 'pitch' });
     case 'oct+': return edit((s, x) => E.shiftPitch(s, x, 12), { listen: 'note', what: 'pitch' });
     case 'str-': return cycleString(-1);
@@ -1256,7 +1363,8 @@ ui.ed.addEventListener('click', (e) => {
   if (b && !b.disabled) act(b.dataset.act);
 });
 
-// keyboard (PC): ↑↓ pitch (Shift = octave), ←→ previous/next, Delete = rest, Enter = add note to a rest, Esc = close
+// keyboard (PC): ↑↓ / W S / + − one step in the key (Shift on ↑↓ W S = one fret), ←→ / A D previous/next,
+// Delete = remove (closes the gap), Enter = add note to a rest, Esc = close
 document.addEventListener('keydown', (e) => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
   const mod = e.ctrlKey || e.metaKey;
@@ -1265,15 +1373,18 @@ document.addEventListener('keydown', (e) => {
   if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && $('takesSheet').hidden && $('fixesSheet').hidden && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
   if (!sel || typing || mod || e.altKey) return;
   if (e.key === 'Enter' && (e.target.tagName === 'BUTTON' || sel.kind !== 'rest')) return;
+  const up = e.shiftKey ? 'semi+' : 'step+', down = e.shiftKey ? 'semi-' : 'step-';
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   const keys = {
-    ArrowUp: e.shiftKey ? 'oct+' : 'semi+', ArrowDown: e.shiftKey ? 'oct-' : 'semi-',
-    Delete: 'rest', Backspace: 'rest', Enter: 'fill',
+    ArrowUp: up, w: up, ArrowDown: down, s: down,
+    '+': 'step+', '=': 'step+', '-': 'step-', '_': 'step-',
+    Delete: 'delete', Backspace: 'delete', Enter: 'fill',
   };
   if (exportSheet.isOpen) return;
-  if (e.key === 'ArrowLeft') nav(-1);
-  else if (e.key === 'ArrowRight') nav(1);
-  else if (e.key === 'Escape') closeEditor();
-  else if (keys[e.key]) act(keys[e.key]);
+  if (k === 'ArrowLeft' || k === 'a') nav(-1);
+  else if (k === 'ArrowRight' || k === 'd') nav(1);
+  else if (k === 'Escape') { if (selectMode) setSelectMode(false); closeEditor(); }
+  else if (keys[k]) act(keys[k]);
   else return;
   e.preventDefault();
 });

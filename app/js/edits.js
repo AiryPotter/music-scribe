@@ -86,6 +86,35 @@ export function removeNote(score, sel) {
   return { ...sel, focus: Math.min(sel.focus, ev.notes.length - 1) };
 }
 
+/**
+ * Take notes/chords out and close the gap: everything after slides earlier by the time each one
+ * took up (to the next note), so the song just carries on without them. idxs: event indexes.
+ */
+export function removeEvents(score, idxs) {
+  const order = [...new Set(idxs)].filter((i) => score.events[i]).sort((a, b) => b - a);
+  for (const i of order) {
+    const ev = score.events[i], next = score.events[i + 1];
+    const gap = next ? next.slot - ev.slot : 0;
+    score.events.splice(i, 1);
+    for (let j = i; j < score.events.length; j++) score.events[j].slot -= gap;
+  }
+  return order.length;
+}
+
+/** The pitch classes of the key signature's scale (a minor key shares its relative major's notes). */
+export function scaleOf(fifths = 0) {
+  const tonic = (((fifths * 7) % 12) + 12) % 12;
+  return new Set([0, 2, 4, 5, 7, 9, 11].map((i) => (tonic + i) % 12));
+}
+
+/** One step up/down the key's scale from a pitch (a note outside the key goes to the nearest one in it). */
+export function keyStep(midi, dir, fifths = 0) {
+  const scale = scaleOf(fifths);
+  let m = midi + dir;
+  while (!scale.has(((m % 12) + 12) % 12)) m += dir;
+  return m;
+}
+
 /** Turn a note/chord into silence. */
 export function makeRest(score, sel) {
   const ev = score.events[sel.idx];

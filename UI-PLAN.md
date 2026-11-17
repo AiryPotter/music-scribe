@@ -84,3 +84,8 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 ## Next (needs a guitar)
 - Record real takes on the Pixel and iPhone, compare with the bench, re-tune thresholds.
 - Strumming patterns and repeated power chords are the weakest areas.
+
+## Manuscript tools (2026-11-17)
+- A tools bar under the manuscript: **Select** (tap several notes), **Remove note(s)** (closes the gap), **Clear Thy Manuscript** (moved here from the header, per 2c's aim of keeping it away from Export). Room for more tools.
+- Pitch keys: ↑↓ / W S / + − = one step in the key (Shift = one fret); ← → / A D = previous/next note. Tray: ▲▼ key step, ♭ ♯ one fret, ±8ve. Every change plays the new note(s).
+- Clearer hover highlight on PC; a different hover colour while Select is on.

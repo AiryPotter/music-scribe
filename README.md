@@ -33,7 +33,15 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
   - **⌒ Tie** a note into the next identical one, or **Untie** a tied note into separate strikes
   - ◀ ▶ to step through notes; 🔊 to hear a chord
 - **Undo / Redo** (↶ ↷), which also brings back a cleared or re-recorded take
-- PC keys: ↑↓ pitch (Shift = octave), ←→ previous/next, Delete = rest, Enter = add note to a rest, Ctrl+Z / Ctrl+Y, Esc closes
+- PC keys: **↑ ↓, W S or + −** move the note one step in the key (Shift+↑↓ / Shift+W S = one fret), **← →** or **A D** previous/next note (you hear each one), **Delete** removes the note, Enter = add note to a rest, Ctrl+Z / Ctrl+Y, Esc closes
+- In the tray, ▲▼ move a step in the key, ♭ ♯ move one fret, ±8ve an octave; every change plays the new note
+
+### Tools under the manuscript
+- **Select**: turn it on, then tap notes to pick several (tap again to un-pick). ▲▼ / W S / + − move all of them along the key together, and you hear them as a little run.
+- **Remove note / Remove N notes**: takes the note (or the picked notes) out and **closes the gap**: everything after slides earlier. Undo brings them back. Also the **Remove** button in the tray, or Delete.
+- **Clear Thy Manuscript**: clears the page (Undo brings it back).
+- On PC, hovering over a note highlights what a click will pick.
+- Removed notes count as "wrong extra notes" in the Fixes log.
 - **Tunings**: Standard, Drop D, half-step down, whole-step down, Drop C, or Custom (set each string)
 - **Capo** 0–12: tab is counted from the capo, notation shows the real sounding notes, and the page is labelled "Capo 2" etc.
 
@@ -117,7 +125,7 @@ The only thing Music Scribe keeps is the written music. The recording lives in m
 
 ## UI improvements (see UI-PLAN.md)
 - **Phase 1 ✅** **Play** button (▶ in the manuscript header, or Space on PC): plays the written notes with the plucked-guitar sound, a gold cursor follows along, starts from the selected note, Pause resumes where it stopped. On phones, Tuning and Capo fold into one **Guitar** button.
-- **Phase 2 ✅** Slimmer editor tray (String, Chord name and Tie sit behind **More**, which remembers if you leave it open); a progress bar on the manuscript while Mozart writes; **Clear** moved next to the note count, away from Export, with a "Manuscript cleared · Undo" message.
+- **Phase 2 ✅** Slimmer editor tray (String, Chord name and Tie sit behind **More**, which remembers if you leave it open); a progress bar on the manuscript while Mozart writes; **Clear Thy Manuscript** lives in the tools bar under the manuscript, away from Export, with a "Manuscript cleared · Undo" message.
 - **Phase 3 ✅** The empty manuscript shows three steps (Begin, play, Cease). **Takes** opens Thy Library: every finished take is saved on the device by itself (written notes, edits, title and tuning only: never audio), and re-saved as you edit. Tap to reopen, ✎ to rename right in the list (Enter or Save to keep, Esc or Cancel to leave it), 🗑 to delete (with Undo). The library lives in that browser on that device; use Project files or Dropbox to move a take between devices.
 
 ## Run it on the PC

@@ -1014,3 +1014,42 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   :root:not([data-theme="light"]) .tune-btn, :root:not([data-theme="light"]) .tn-note { color: #e7b45a; border-color: #e7b45a; }
   :root:not([data-theme="light"]) .tn-advice.ok, :root:not([data-theme="light"]) .tn-string i { color: #a7c46a; }
 }
+
+/* ---------- tools under the manuscript ---------- */
+.score-tools {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed color-mix(in srgb, var(--card-edge) 70%, transparent);
+}
+.score-tools[hidden] { display: none; }
+.tools-gap { flex: 1 1 auto; }
+.tool-btn {
+  font: inherit; font-size: 15px; font-weight: 700;
+  min-height: 40px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid var(--card-edge);
+  background: color-mix(in srgb, var(--card) 70%, white 30%);
+  color: var(--text); cursor: pointer; touch-action: manipulation; white-space: nowrap;
+}
+.tool-btn:hover:not(:disabled) { border-color: var(--gold); }
+.tool-btn:disabled { opacity: .45; cursor: default; }
+.tool-btn.on { background: var(--gold); border-color: var(--gold); color: #2b1d14; }
+.tool-btn.danger { color: var(--seal); border-color: color-mix(in srgb, var(--seal) 45%, var(--card-edge)); }
+.tool-btn.danger:hover { background: color-mix(in srgb, var(--seal) 10%, transparent); }
+.tool-btn:focus-visible { outline: 2px solid var(--burgundy); outline-offset: 2px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tool-btn { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+  :root:not([data-theme="light"]) .tool-btn.danger { color: #e98a7a; }
+}
+:root[data-theme="dark"] .tool-btn { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+:root[data-theme="dark"] .tool-btn.danger { color: #e98a7a; }
+@media (max-width: 520px) {
+  .score-tools .tool-btn { flex: 1 1 auto; }
+  .tools-gap { display: none; }
+}
+
+/* hover shows which note a click will pick (PC) */
+@media (hover: hover) {
+  .score .hit:hover { fill: rgba(184, 137, 43, .16); stroke: rgba(184, 137, 43, .55); stroke-width: 1; }
+  body.selecting .score .hit:hover { fill: rgba(122, 31, 43, .12); stroke: rgba(122, 31, 43, .6); }
+}
+body.selecting .score .hit { cursor: copy; }
