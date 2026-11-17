@@ -87,7 +87,7 @@ The only thing Music Scribe keeps is the written music. The recording lives in m
 ## UI improvements (see UI-PLAN.md)
 - **Phase 1 ✅** **Play** button (▶ in the manuscript header, or Space on PC): plays the written notes with the plucked-guitar sound, a gold cursor follows along, starts from the selected note, Pause resumes where it stopped. On phones, Tuning and Capo fold into one **Guitar** button.
 - **Phase 2 ✅** Slimmer editor tray (String, Chord name and Tie sit behind **More**, which remembers if you leave it open); a progress bar on the manuscript while Mozart writes; **Clear** moved next to the note count, away from Export, with a "Manuscript cleared · Undo" message.
-- **Phase 3 ✅** The empty manuscript shows three steps (Begin, play, Cease). **Takes** opens Thy Library: every finished take is saved on the device by itself (written notes, edits, title and tuning only: never audio), and re-saved as you edit. Tap to reopen, ✎ to rename, 🗑 to delete (with Undo). The library lives in that browser on that device; use Project files or Dropbox to move a take between devices.
+- **Phase 3 ✅** The empty manuscript shows three steps (Begin, play, Cease). **Takes** opens Thy Library: every finished take is saved on the device by itself (written notes, edits, title and tuning only: never audio), and re-saved as you edit. Tap to reopen, ✎ to rename right in the list (Enter or Save to keep, Esc or Cancel to leave it), 🗑 to delete (with Undo). The library lives in that browser on that device; use Project files or Dropbox to move a take between devices.
 
 ## Run it on the PC
 ```

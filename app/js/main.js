@@ -1406,6 +1406,34 @@ function closeTakes() {
 ui.takes.addEventListener('click', openTakes);
 $('hintTakes').addEventListener('click', openTakes);
 $('tkClose').addEventListener('click', closeTakes);
+/** Rename a take right in the list: the title becomes a text box with Save and Cancel. */
+function renameInline(li, rec) {
+  $('tkList').querySelector('.tk-rename')?.closest('.tk-item')?.dispatchEvent(new CustomEvent('cancel-rename'));
+  const form = document.createElement('form');
+  form.className = 'tk-rename';
+  form.innerHTML = `<input type="text" maxlength="80" placeholder="Untitled" aria-label="Name this take" autocomplete="off" enterkeyhint="done">
+    <button type="submit" class="ed-btn primary">Save</button>
+    <button type="button" class="ed-btn" data-cancel>Cancel</button>`;
+  const input = form.querySelector('input');
+  input.value = rec.title || '';
+  li.classList.add('renaming');
+  li.prepend(form);
+  input.focus();
+  input.select();
+  const finish = () => { form.remove(); li.classList.remove('renaming'); li.querySelector('[data-do="rename"]')?.focus(); };
+  li.addEventListener('cancel-rename', finish, { once: true });
+  form.querySelector('[data-cancel]').addEventListener('click', finish);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(); } });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    rec.title = input.value.trim().slice(0, 80);
+    rec.data.title = rec.title;
+    if (take?.id === rec.id) take.title = rec.title;
+    await saveTake(rec);
+    await renderTakes();
+    $('tkList').querySelector(`.tk-item[data-id="${CSS.escape(rec.id)}"] [data-do="rename"]`)?.focus();
+  });
+}
 $('tkList').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-do]');
   const li = e.target.closest('.tk-item');
@@ -1418,13 +1446,7 @@ $('tkList').addEventListener('click', async (e) => {
     flushSave();
     openProject(rec.data, { id: rec.id, createdAt: rec.createdAt });
   } else if (b.dataset.do === 'rename') {
-    const name = window.prompt('Name this take', rec.title || '');
-    if (name === null) return;
-    rec.title = name.trim().slice(0, 80);
-    rec.data.title = rec.title;
-    if (take?.id === rec.id) take.title = rec.title;
-    await saveTake(rec);
-    renderTakes();
+    renameInline(li, rec);
   } else if (b.dataset.do === 'delete') {
     await deleteTake(rec.id);
     if (take?.id === rec.id) take.id = null; // still on the page, just no longer in the library
