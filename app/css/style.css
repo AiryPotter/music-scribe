@@ -1016,12 +1016,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 
 /* ---------- tools under the manuscript ---------- */
-.score-tools {
+.ms-tools {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
   margin-top: 10px; padding-top: 10px;
   border-top: 1px dashed color-mix(in srgb, var(--card-edge) 70%, transparent);
 }
-.score-tools[hidden] { display: none; }
+.ms-tools[hidden] { display: none; }
 .tools-gap { flex: 1 1 auto; }
 .tool-btn {
   font: inherit; font-size: 15px; font-weight: 700;
@@ -1043,7 +1043,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 :root[data-theme="dark"] .tool-btn { background: color-mix(in srgb, var(--card) 85%, black 15%); }
 :root[data-theme="dark"] .tool-btn.danger { color: #e98a7a; }
 @media (max-width: 520px) {
-  .score-tools .tool-btn { flex: 1 1 auto; }
+  .ms-tools .tool-btn { flex: 1 1 auto; }
   .tools-gap { display: none; }
 }
 
@@ -1053,3 +1053,43 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   body.selecting .score .hit:hover { fill: rgba(122, 31, 43, .12); stroke: rgba(122, 31, 43, .6); }
 }
 body.selecting .score .hit { cursor: copy; }
+
+/* ---------- layers (parts on one manuscript) ---------- */
+.layer-bar { margin: 8px 0 8px; }
+.layer-bar[hidden], .layer-row[hidden] { display: none; }
+.layer-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.layer-chip {
+  --layer: var(--card-edge);
+  display: inline-flex; align-items: center; min-height: 36px;
+  border: 1.5px solid var(--layer); border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--layer) 8%, var(--card));
+  color: var(--text); font: inherit; font-size: 14px; font-weight: 700;
+}
+.layer-chip button, button.layer-chip { font: inherit; color: inherit; background: none; border: 0; min-height: 34px; padding: 0 11px; cursor: pointer; touch-action: manipulation; }
+button.layer-chip { border: 1.5px solid var(--card-edge); background: color-mix(in srgb, var(--card) 70%, white 30%); }
+.layer-chip.on { background: color-mix(in srgb, var(--layer) 24%, var(--card)); box-shadow: inset 0 0 0 1.5px var(--layer); }
+.layer-chip.thin { border-style: dashed; }
+.layer-chip.thin .lc-dot { opacity: .35; }
+.layer-chip.muted .lc-main { opacity: .55; }
+.lc-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: var(--layer); margin-right: 6px; vertical-align: -1px; }
+.lc-mute { border-left: 1px solid color-mix(in srgb, var(--layer) 45%, transparent) !important; padding: 0 9px !important; }
+button.layer-chip.all.on { background: var(--gold); border-color: var(--gold); color: #2b1d14; }
+button.layer-chip.add { border-style: dashed; }
+button.layer-chip:disabled { opacity: .45; cursor: default; }
+.layer-chip button:focus-visible, button.layer-chip:focus-visible { outline: 2px solid var(--burgundy); outline-offset: -2px; }
+.layer-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.layer-name { font: inherit; font-weight: 700; min-height: 36px; width: 11em; padding: 0 9px; border-radius: 8px; border: 1px solid var(--card-edge); background: color-mix(in srgb, var(--card) 70%, white 30%); color: var(--text); }
+.layer-vol { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-soft); }
+.layer-vol input { width: 120px; accent-color: var(--burgundy); }
+.tool-btn.small { min-height: 36px; font-size: 14px; padding: 0 11px; }
+.layer-hint { margin: 6px 0 0; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) button.layer-chip:not(.on), :root:not([data-theme="light"]) .layer-name { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+}
+:root[data-theme="dark"] button.layer-chip:not(.on), :root[data-theme="dark"] .layer-name { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+
+/* on the page: the layer being edited is bold; the others are faint (or bold in the All view) */
+.score g.layer.thin { opacity: var(--fade, .45); }
+.score g.layer.thin path { stroke-width: .8px; }
+.score g.layer.bold path { stroke: var(--layer); stroke-width: 1.6px; }
+.score g.layer-ties path { fill: var(--layer); stroke: var(--layer); }

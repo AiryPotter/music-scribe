@@ -192,6 +192,26 @@ export function makeNotes(bp, raw, params = {}) {
 }
 
 /**
+ * Remove notes that are really the other layers playing back through the speakers while a new
+ * layer was recorded. played: [{ midi, t, dur }] (when each played note reached the mic, seconds
+ * from the start of the recording). A note at the same pitch (or an octave/twelfth above it),
+ * starting with a played note and not lasting longer than it, is the leak. A very loud note is
+ * kept: that's the guitar being played right into the mic. Only done when the leak is real (a fair
+ * share of the played notes came back): with headphones, a match is just the same note played.
+ */
+export function removePlaybackNotes(notes, played, { before = 0.05, after = 0.12, loud = 0.8, share = 0.3 } = {}) {
+  if (!played?.length || !notes.length) return notes;
+  const end = Math.max(...notes.map((n) => n.end));
+  const heard = played.filter((p) => p.t < end); // what played while the mic was listening
+  const leak = (n) => heard.some((p) => n.start >= p.t - before && n.start <= p.t + after
+    && [0, 12, 19].includes(n.midi - p.midi) && n.end - n.start <= p.dur + 0.3 && (n.amp ?? 0.6) < loud);
+  const hits = notes.filter(leak);
+  // with headphones almost nothing comes back: then a match is just me playing the same note
+  if (hits.length < Math.max(3, share * heard.length)) return notes;
+  return notes.filter((n) => !hits.includes(n));
+}
+
+/**
  * Remove notes that are really the metronome leaking into the mic.
  * clickTimes: when each tick reached the mic (seconds from the start of the recording).
  * A pitch that keeps appearing right on the ticks, briefly, is the click (a speaker's thump,

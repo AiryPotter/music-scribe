@@ -180,8 +180,8 @@ function pickLen(pos, room, barSlots) {
  * [{ slot, len, keys: [midi] }] (slots are 16ths from the start of bar 1; events never overlap).
  * tempo = { bpm, beat0, meter, offset } (offset = which beat is the downbeat).
  */
-export function quantize(notes, tempo, { simple = false, openStrings = [], releaseFilter = true } = {}) {
-  if (simple) return quantizeSimple(releaseFilter ? dropReleaseNoise(notes, openStrings) : notes, tempo);
+export function quantize(notes, tempo, { simple = false, openStrings = [], releaseFilter = true, anchor = false } = {}) {
+  if (simple) return quantizeSimple(releaseFilter ? dropReleaseNoise(notes, openStrings) : notes, tempo, { anchor });
   const { bpm, beat0, meter } = tempo;
   const p = 60 / bpm;
   const slotDur = p / SLOTS_PER_BEAT;
@@ -190,8 +190,10 @@ export function quantize(notes, tempo, { simple = false, openStrings = [], relea
   const first = Math.min(...notes.map((n) => n.start));
   let barStart = beat0 + (tempo.offset || 0) * p;
   const barDur = meter * p;
-  while (barStart > first + slotDur / 2) barStart -= barDur;
-  while (barStart + barDur <= first - slotDur / 2) barStart += barDur;
+  if (!anchor) { // (anchored: slot 0 is the song's first downbeat, wherever this layer starts)
+    while (barStart > first + slotDur / 2) barStart -= barDur;
+    while (barStart + barDur <= first - slotDur / 2) barStart += barDur;
+  }
 
   // group notes into strums/onsets first, then snap each group to the grid as one
   const groups = new Map();
@@ -430,7 +432,7 @@ export function intentionScores(notes, openStrings = []) {
  *  - very short, quiet blips are dropped
  * Returns { events, barStart } like quantize().
  */
-function quantizeSimple(notes, tempo) {
+function quantizeSimple(notes, tempo, { anchor = false } = {}) {
   const { bpm, beat0, meter } = tempo;
   const p = 60 / bpm;
   const slotDur = p / SLOTS_PER_BEAT;
@@ -442,8 +444,10 @@ function quantizeSimple(notes, tempo) {
   const first = Math.min(...kept.map((n) => n.start));
   let barStart = beat0 + (tempo.offset || 0) * p;
   const barDur = meter * p;
-  while (barStart > first + slotDur) barStart -= barDur;
-  while (barStart + barDur <= first - slotDur) barStart += barDur;
+  if (!anchor) {
+    while (barStart > first + slotDur) barStart -= barDur;
+    while (barStart + barDur <= first - slotDur) barStart += barDur;
+  }
 
   // one pluck at a time (a strum is one pluck of several strings)
   const OVERTONE = [12, 19, 24, 28, 31, 36];
@@ -492,8 +496,8 @@ function quantizeSimple(notes, tempo) {
   });
   let evs = [...taken.values()].sort((a, b) => a.slot - b.slot);
 
-  // the first note starts bar 1 (no lead-in rest)
-  const shift0 = evs[0].slot;
+  // the first note starts bar 1 (no lead-in rest), unless this layer has to line up with the others
+  const shift0 = anchor ? 0 : evs[0].slot;
   evs = evs.map((e) => ({ ...e, slot: e.slot - shift0 }));
 
   // each note lasts until the next; a long pause moves the next phrase up to the next bar line
@@ -505,7 +509,7 @@ function quantizeSimple(notes, tempo) {
     let end;
     if (i + 1 < evs.length) {
       const next = evs[i + 1].slot - shift;
-      if (next - barEnd > barSlots) { // more than a whole empty bar: close the gap
+      if (!anchor && next - barEnd > barSlots) { // more than a whole empty bar: close the gap
         shift += next - barEnd;
         end = barEnd;
       } else end = next;
@@ -521,7 +525,7 @@ function quantizeSimple(notes, tempo) {
  * Returns measures: [[piece]] with piece = { slots, at, rest, evIdx, tieFromPrev, tieToNext,
  * restAt, restLen } (restAt/restLen = the whole gap a rest piece belongs to).
  */
-export function layoutBars(events, barSlots) {
+export function layoutBars(events, barSlots, minBars = 1) {
   const items = [];
   let cursor = 0;
   events.forEach((ev, idx) => {
@@ -531,7 +535,7 @@ export function layoutBars(events, barSlots) {
     if (end > start) items.push({ slot: start, len: end - start, evIdx: idx });
     cursor = Math.max(cursor, end);
   });
-  const bars = Math.max(1, Math.ceil(cursor / barSlots));
+  const bars = Math.max(1, minBars, Math.ceil(cursor / barSlots)); // (minBars: as long as the other layers)
   if (cursor < bars * barSlots) items.push({ slot: cursor, len: bars * barSlots - cursor, rest: true });
 
   const measures = Array.from({ length: bars }, () => []);

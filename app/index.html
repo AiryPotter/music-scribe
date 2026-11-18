@@ -264,6 +264,15 @@
         <div class="sp-bar" role="progressbar" aria-label="Writing out the notes" aria-valuemin="0" aria-valuemax="100"><i id="scoreProgressFill"></i></div>
         <span id="scoreProgressText">0%</span>
       </div>
+      <div id="layerBar" class="layer-bar" hidden>
+        <div id="layerChips" class="layer-chips" role="group" aria-label="Layers"></div>
+        <div id="layerRow" class="layer-row" hidden>
+          <input id="layerName" class="layer-name" type="text" maxlength="24" aria-label="Layer name" autocomplete="off">
+          <label class="layer-vol"><span>Volume</span> <input id="layerVol" type="range" min="0" max="150" step="5" aria-label="Layer volume"></label>
+          <button id="layerDelete" class="tool-btn danger small" type="button" title="Delete this layer (Undo brings it back)">Delete layer</button>
+        </div>
+        <p id="layerHint" class="hint small layer-hint"></p>
+      </div>
       <div class="page">
         <div id="emptyHint" class="empty-hint" hidden>
           <ol>
@@ -277,7 +286,7 @@
         <div id="score" class="score"></div>
       </div>
       <!-- Tools under the manuscript (room for more) -->
-      <div id="scoreTools" class="score-tools" role="toolbar" aria-label="Manuscript tools" hidden>
+      <div id="scoreTools" class="ms-tools" role="toolbar" aria-label="Manuscript tools" hidden>
         <button id="selectTool" class="tool-btn" type="button" aria-pressed="false" title="Pick several notes: each tap adds or removes one">Select</button>
         <button id="removeTool" class="tool-btn" type="button" disabled title="Take the selected note(s) out; the rest slides up to close the gap (Delete)">Remove note</button>
         <span class="tools-gap"></span>

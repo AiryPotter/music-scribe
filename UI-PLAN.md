@@ -89,3 +89,10 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - A tools bar under the manuscript: **Select** (tap several notes), **Remove note(s)** (closes the gap), **Clear Thy Manuscript** (moved here from the header, per 2c's aim of keeping it away from Export). Room for more tools.
 - Pitch keys: ↑↓ / W S / + − = one step in the key (Shift = one fret); ← → / A D = previous/next note. Tray: ▲▼ key step, ♭ ♯ one fret, ±8ve. Every change plays the new note(s).
 - Clearer hover highlight on PC; a different hover colour while Select is on.
+
+## Layers, phase 1 (2026-11-18)
+- Up to 4 layers sharing tempo, time and key. Chips above the page: colour dot, name, 🔊/🔇; **All**; **+ Layer**. A row for the active layer: name, volume, Delete layer.
+- Page: active layer bold black (stems up), others faint in their colour (stems down) on the same staff; All = every layer bold in its colour, tap to thin. Tab = active layer only.
+- Colours: sky blue #3b8fd0, violet #7b4fb3, arterial red #7d0010 (kept more solid when faint so it never turns pink), evergreen #1f6b4f.
+- Begin records the active layer with a one-bar count-in while the others play (placed left/right); leaked notes from speakers are filtered only when a real share of the played notes came back.
+- Next phases: 2 = transcribe while playing (shorter wait), 3 = export every layer as its own part, 4 = Harmony layer (copy a layer a 3rd/6th up in the key).

@@ -5,6 +5,8 @@
 //           ref (tap target id), sel (selected), focus (index of the focused key when selected) }
 // slots are 16th notes (4 = quarter note).
 // When pieces carry `ref`, invisible tap areas (<rect data-ref>) are added over each column.
+// Layers: model.ghosts = [{ measures, color, thin }] are other parts drawn on the same staff (stems
+// down, in their colour; thin = see-through); model.layerStyle = { color, thin } styles the main part.
 
 import { spell, signature, vexKeySpec } from './keys.js';
 import { DUR } from './rhythm.js';
@@ -52,6 +54,8 @@ export function renderScore(el, model, opts = {}) {
   const { Renderer, Stave, TabStave, StaveNote, TabNote, GhostNote, Voice, Formatter, Accidental,
     StaveConnector, Dot, Beam, StaveTie, Annotation, Fraction } = VF;
   const { measures, meter = 4, header = '' } = model;
+  const ghosts = (model.ghosts || []).filter((g) => g.measures?.length);
+  const mainStyle = model.layerStyle || null;
   const fifths = model.keyFifths || 0;
   const keyW = Math.abs(fifths) * 10 + (fifths ? 6 : 0);
   const layout = opts.layout || 'both';
@@ -78,10 +82,13 @@ export function renderScore(el, model, opts = {}) {
   // lay bars out into rows by how much room each needs
   const rows = [];
   let row = [], used = 0;
+  // a bar needs room for the busiest layer in it
+  const needOf = (i, first) => Math.max(minMeasureWidth(measures[i], first, i === 0, keyW),
+    ...ghosts.map((g) => (g.measures[i] ? minMeasureWidth(g.measures[i], first, i === 0, keyW) : 0)));
   measures.forEach((m, i) => {
-    const need = minMeasureWidth(m, row.length === 0, i === 0, keyW);
+    const need = needOf(i, row.length === 0);
     if (row.length && used + need > usable) { rows.push(row); row = []; used = 0; }
-    row.push({ m, i, need: minMeasureWidth(m, row.length === 0, i === 0, keyW) });
+    row.push({ m, i, need: needOf(i, row.length === 0) });
     used += row[row.length - 1].need;
   });
   if (row.length) rows.push(row);
@@ -89,7 +96,7 @@ export function renderScore(el, model, opts = {}) {
   // a row with very high notes (many ledger lines) gets extra room above it, so it doesn't overlap the row above
   const rowExtra = rows.map((r) => {
     let hi = 0;
-    for (const c of r) for (const p of c.m) if (!p.rest && p.keys?.length) hi = Math.max(hi, ...p.keys);
+    for (const c of r) for (const p of [...c.m, ...ghosts.flatMap((g) => g.measures[c.i] || [])]) if (!p.rest && p.keys?.length) hi = Math.max(hi, ...p.keys);
     const written = hi + 12; // guitar is written an octave up
     return showStaff ? Math.max(0, Math.ceil((written - 84) * 3.2) + (written > 84 ? 14 : 0)) : 0;
   });
@@ -120,6 +127,14 @@ export function renderScore(el, model, opts = {}) {
   };
 
   const order = []; // every drawn StaveNote in time order, with its row, for ties
+  const ghostOrder = ghosts.map(() => []);
+  // an SVG group per layer, so the page's CSS can make it bold or see-through
+  const group = (cls, color, fade = 0.45) => {
+    const g = ctx.openGroup?.();
+    if (g?.setAttribute) { g.setAttribute('class', cls); g.style?.setProperty('--layer', color); g.style?.setProperty('--fade', String(fade)); }
+    return g;
+  };
+  const styleOf = (L) => `layer ${L.thin ? 'thin' : 'bold'}`;
 
   rows.forEach((r, rowIdx) => {
     const total = r.reduce((s, c) => s + c.need, 0);
@@ -160,7 +175,8 @@ export function renderScore(el, model, opts = {}) {
             sn = new StaveNote({ keys: ['b/4'], duration: dur, dots, type: 'r' });
           } else {
             const sp = p.keys.map((m) => spell(m + 12, fifths)); // guitar is written an octave up
-            sn = new StaveNote({ keys: sp.map((x) => `${x.letter.toLowerCase()}${x.alter === 1 ? '#' : x.alter === -1 ? 'b' : ''}/${x.octave}`), duration: dur, dots, auto_stem: true });
+            sn = new StaveNote({ keys: sp.map((x) => `${x.letter.toLowerCase()}${x.alter === 1 ? '#' : x.alter === -1 ? 'b' : ''}/${x.octave}`), duration: dur, dots,
+              ...(ghosts.length ? { stem_direction: 1 } : { auto_stem: true }) }); // with other layers: stems up, theirs down
             sp.forEach((x, idx) => {
               const where = `${x.letter}${x.octave}`;
               const current = inBar.has(where) ? inBar.get(where) : sig[x.letter];
@@ -184,6 +200,7 @@ export function renderScore(el, model, opts = {}) {
             else if (tn && !(tn instanceof GhostNote)) { try { tn.addModifier(chordMark(p), 0); } catch { /* no annotation */ } }
           }
           const paint = (style) => { sn?.setStyle(style); tn?.setStyle?.(style); };
+          if (mainStyle && sn) sn.setStyle({ fillStyle: mainStyle.color, strokeStyle: mainStyle.color });
           if (p.live) paint({ fillStyle: live, strokeStyle: live });
           if (p.sel) {
             paint({ fillStyle: selInk, strokeStyle: selInk });
@@ -200,24 +217,61 @@ export function renderScore(el, model, opts = {}) {
         if (tn) tabNotes.push(tn);
       });
 
+      // the other layers in this bar: their own voices on the same staff
+      const gv = [];
+      if (showStaff) ghosts.forEach((g, gi) => {
+        const gNotes = [];
+        const gInBar = new Map();
+        (g.measures[cell.i] || [{ slots: meter * 4, rest: true }]).forEach((p) => {
+          const [dur, dots] = DUR[p.slots] || ['q', 0];
+          if (p.rest || !p.keys?.length) { gNotes.push(new GhostNote({ duration: dur, dots })); return; }
+          const sp = p.keys.map((m) => spell(m + 12, fifths));
+          const n = new StaveNote({ keys: sp.map((x) => `${x.letter.toLowerCase()}${x.alter === 1 ? '#' : x.alter === -1 ? 'b' : ''}/${x.octave}`), duration: dur, dots, stem_direction: -1 });
+          sp.forEach((x, idx) => {
+            const where = `${x.letter}${x.octave}`;
+            const current = gInBar.has(where) ? gInBar.get(where) : sig[x.letter];
+            if (x.alter !== current && !p.tieFromPrev) n.addModifier(new Accidental(x.alter === 1 ? '#' : x.alter === -1 ? 'b' : 'n'), idx);
+            gInBar.set(where, x.alter);
+          });
+          n.setStyle({ fillStyle: g.color, strokeStyle: g.color });
+          if (dots) Dot.buildAndAttach([n], { all: true });
+          gNotes.push(n);
+          ghostOrder[gi].push({ sn: n, row: rowIdx, piece: p });
+        });
+        let gBeams = [];
+        try {
+          gBeams = Beam.generateBeams(gNotes, { groups: [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: true })
+            .filter((b) => b.getNotes().every((x) => x instanceof StaveNote));
+        } catch { gBeams = []; }
+        gv.push({ v: new Voice({ num_beats: meter, beat_value: 4 }).setStrict(false).addTickables(gNotes), g, beams: gBeams });
+      });
+
       const voices = [];
       const nv = showStaff ? new Voice({ num_beats: meter, beat_value: 4 }).setStrict(false).addTickables(staffNotes) : null;
       const tv = showTab ? new Voice({ num_beats: meter, beat_value: 4 }).setStrict(false).addTickables(tabNotes) : null;
       const fmt = new Formatter();
-      if (nv) { fmt.joinVoices([nv]); voices.push(nv); }
+      if (nv) { fmt.joinVoices([nv, ...gv.map((x) => x.v)]); voices.push(nv, ...gv.map((x) => x.v)); }
       if (tv) { fmt.joinVoices([tv]); voices.push(tv); }
       let beams = [];
       if (showStaff) {
         try {
-          beams = Beam.generateBeams(staffNotes, { groups: [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: false });
+          beams = Beam.generateBeams(staffNotes, { groups: [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: ghosts.length > 0 });
         } catch { beams = []; }
       }
       const ref = stave || tab;
       const formatWidth = Math.max(40, ref.getNoteEndX() - ref.getNoteStartX() - 10);
       fmt.format(voices, formatWidth);
+      for (const x of gv) { // other layers first, so the main one sits on top
+        group(styleOf(x.g), x.g.color, x.g.fade);
+        x.v.draw(ctx, stave);
+        x.beams.forEach((b) => b.setContext(ctx).draw());
+        ctx.closeGroup?.();
+      }
+      if (mainStyle) group(styleOf(mainStyle), mainStyle.color, mainStyle.fade);
       nv?.draw(ctx, stave);
-      tv?.draw(ctx, tab);
       beams.forEach((b) => b.setContext(ctx).draw());
+      if (mainStyle) ctx.closeGroup?.();
+      tv?.draw(ctx, tab);
 
       // tap areas: each column runs halfway to its neighbours, covering staff + tab
       const notesForX = showStaff ? staffNotes : tabNotes;
@@ -251,6 +305,25 @@ export function renderScore(el, model, opts = {}) {
       }
     } catch { /* skip a tie VexFlow can't draw */ }
   }
+
+  // the other layers' ties, in their colours
+  ghostOrder.forEach((list, gi) => {
+    if (!list.length) return;
+    group(`${styleOf(ghosts[gi])} layer-ties`, ghosts[gi].color, ghosts[gi].fade);
+    for (let i = 0; i < list.length - 1; i++) {
+      const a = list[i], b = list[i + 1];
+      if (!a.piece.tieToNext || !b.piece.tieFromPrev) continue;
+      const idx = a.piece.keys.map((_, k) => k);
+      try {
+        if (a.row === b.row) new StaveTie({ first_note: a.sn, last_note: b.sn, first_indices: idx, last_indices: idx }).setContext(ctx).draw();
+        else {
+          new StaveTie({ first_note: a.sn, last_note: null, first_indices: idx, last_indices: idx }).setContext(ctx).draw();
+          new StaveTie({ first_note: null, last_note: b.sn, first_indices: idx, last_indices: idx }).setContext(ctx).draw();
+        }
+      } catch { /* skip */ }
+    }
+    ctx.closeGroup?.();
+  });
 
   // rowStarts[i] = where row i begins (including its extra room); rowStarts[rows] = the end
   const info = { rows: rows.length, rowHeight: ROW_H, topPad: TOP_PAD, rowStarts, scale, pxWidth, pxHeight };

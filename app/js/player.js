@@ -19,28 +19,47 @@ export class Player {
   }
 
   /**
-   * events: [{ slot, len, notes:[{ midi }] }] sorted; bpm: the written tempo; from: index of the first event.
-   * opts: { speed (0.4–1), click (bool), meter, loop: { start, end } in slots, or null }
+   * layers: [{ events: [{ slot, len, notes:[{ midi }] }] sorted, active (the one the page follows),
+   *   volume (0–1.5), pan (−1…1) }]  (a plain events array also works, as one layer)
+   * bpm: the written tempo; fromSlot: where to start (16ths from the start of the song).
+   * opts: { speed (0.4–1), click (bool), meter, loop: { start, end } in slots, or null,
+   *   at: audio time to start (default: right away) }
    */
-  start(ctx, events, bpm, from = 0, { speed = 1, click = false, meter = 4, loop = null } = {}) {
+  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, loop = null, at = null } = {}) {
     this.stop(false);
-    if (!events.length) return;
-    from = Math.max(0, Math.min(from, events.length - 1));
-    const lastEnd = Math.max(...events.map((e) => e.slot + e.len));
+    if (Array.isArray(layers) && layers.length && !layers[0]?.events) layers = [{ events: layers, active: true }];
+    layers = (layers || []).filter((L) => L.events?.length);
+    if (!layers.length) return;
+    const all = layers.flatMap((L) => L.events);
+    const lastEnd = Math.max(...all.map((e) => e.slot + e.len));
+    fromSlot = Math.max(0, Math.min(fromSlot, Math.max(...all.map((e) => e.slot))));
     const barSlots = meter * SLOTS_PER_BEAT;
     const seg = loop
       ? { start: loop.start, end: Math.min(loop.end, Math.max(loop.start + 1, lastEnd)) }
-      : { start: Math.floor(events[from].slot / SLOTS_PER_BEAT) * SLOTS_PER_BEAT, end: lastEnd };
-    // one pass through the segment: notes, plus a tick on every beat if the click is on
+      : { start: Math.floor(fromSlot / SLOTS_PER_BEAT) * SLOTS_PER_BEAT, end: lastEnd };
+    // one pass through the segment: notes of every layer, plus a tick on every beat if the click is on
+    this.out = ctx.createGain();
+    this.out.connect(ctx.destination);
     const items = [];
-    events.forEach((ev, i) => { if (ev.slot >= seg.start && ev.slot < seg.end && (loop || i >= from)) items.push({ slot: ev.slot, ev, i }); });
+    layers.forEach((L) => {
+      let dest = this.out;
+      try {
+        const g = ctx.createGain();
+        g.gain.value = L.volume ?? 1;
+        if (L.pan && ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = L.pan; g.connect(pn).connect(this.out); } else g.connect(this.out);
+        dest = g;
+      } catch { /* old browser: everything in the middle */ }
+      L.events.forEach((ev, i) => {
+        if (ev.slot >= seg.start && ev.slot < seg.end && (loop || ev.slot >= fromSlot)) items.push({ slot: ev.slot, ev, i: L.active ? i : undefined, dest });
+      });
+    });
     if (click) {
       for (let s = Math.ceil(seg.start / SLOTS_PER_BEAT) * SLOTS_PER_BEAT; s < seg.end; s += SLOTS_PER_BEAT) {
         items.push({ slot: s, tick: true, accent: s % barSlots === 0 });
       }
     }
     items.sort((a, b) => a.slot - b.slot || (a.tick ? -1 : 1));
-    if (!items.some((x) => x.ev)) return;
+    if (!items.some((x) => x.ev)) { try { this.out.disconnect(); } catch { /* */ } return; }
 
     this.ctx = ctx;
     this.items = items;
@@ -48,10 +67,9 @@ export class Player {
     this.seg = seg;
     this.slotDur = 60 / (bpm * speed) / SLOTS_PER_BEAT;
     this.cycleDur = (seg.end - seg.start) * this.slotDur;
-    this.out = ctx.createGain();
-    this.out.connect(ctx.destination);
-    const firstSlot = loop ? seg.start : events[from].slot;
-    this.t0 = ctx.currentTime + 0.12 - (firstSlot - seg.start) * this.slotDur; // audio time of seg.start, cycle 0
+    const firstSlot = loop ? seg.start : fromSlot;
+    this.t0 = (at ?? ctx.currentTime + 0.12) - (firstSlot - seg.start) * this.slotDur; // audio time of seg.start, cycle 0
+    this.lastSlot = firstSlot;
     this.next = { k: 0, j: 0 };   // next item to schedule (cycle, index)
     this.cursor = { k: 0, j: 0 }; // next item to highlight
     this.shown = -1;
@@ -81,23 +99,24 @@ export class Player {
       const it = this.items[this.next.j];
       const at = Math.max(now, this.timeOf(this.next));
       if (it.tick) this.tickSound(at, it.accent);
-      else playPluck(this.ctx, it.ev.notes.map((n) => n.midi), { at, dest: this.out });
+      else playPluck(this.ctx, it.ev.notes.map((n) => n.midi), { at, dest: it.dest || this.out });
       if (!this.advance(this.next)) this.nextDone = true;
     }
     while (!this.cursorDone && this.timeOf(this.cursor) <= now) {
       const it = this.items[this.cursor.j];
-      if (!it.tick && it.i !== this.shown) { this.shown = it.i; this.onStep(this.shown); }
+      if (!it.tick) this.lastSlot = it.slot;
+      if (!it.tick && it.i !== undefined && it.i !== this.shown) { this.shown = it.i; this.onStep(this.shown); }
       if (!this.advance(this.cursor)) this.cursorDone = true;
     }
     if (!this.loop && this.nextDone) {
-      const last = [...this.items].reverse().find((x) => x.ev);
-      const end = this.t0 + (last.slot + last.ev.len - this.seg.start) * this.slotDur + 0.6;
+      const lastEnd = Math.max(...this.items.filter((x) => x.ev).map((x) => x.slot + x.ev.len));
+      const end = this.t0 + (lastEnd - this.seg.start) * this.slotDur + 0.6;
       if (now > end) this.stop(true);
     }
   }
 
-  /** Index of the note sounding now (to resume from after a pause). */
-  get position() { return this.playing ? Math.max(0, this.shown) : 0; }
+  /** Where the music is now, in slots (to resume from after a pause). */
+  get position() { return this.playing ? this.lastSlot ?? 0 : 0; }
 
   stop(finished = false) {
     if (!this.playing) return;

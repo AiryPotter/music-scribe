@@ -94,6 +94,17 @@ Music Scribe is for catching ideas while you practise, so the default is **Simpl
 ## Tab follows your string
 When you climb or descend one string fret by fret (3 or more notes, one fret apart), the tab keeps the run on that string (E1 E2 E3 … E19) instead of hopping across the neck. A stray open string or a stacked stray note doesn't break the run.
 
+## Layers: a quartet on one manuscript
+Write a melody, then add up to **3 more guitar parts** (backup, harmony, bass line…) on top and hear them together.
+- **+ Layer** (under the manuscript header) adds a part. Tap **Begin** and you get a one-bar count-in at the song's tempo, then the other layers play while you play; your part is written on the same bars. (Or tap a rest in the new layer to write notes by hand.)
+- **Headphones work best.** If the other layers come out of speakers and the mic picks them up, Mozart takes those notes out again (only when that's clearly happening, so a note you really play in unison stays).
+- **The layer you're editing is bold black.** The others are faint, each in its own colour: layer 1 **sky blue**, layer 2 **violet**, layer 3 **arterial red**, layer 4 **evergreen**. The tab shows only the layer you're editing.
+- **All** shows every layer bold in its colour; tap a layer to make it thin, tap again to make it bold.
+- **▶ plays every layer together**, each placed a little left or right so you can tell them apart. 🔊/🔇 on a layer mutes it; **Volume** sets its level. Rename a layer by typing in its name box; **Delete layer** has Undo.
+- Begin on a song with layers records **the layer you're editing** again (Undo brings the old one back). Clear Thy Manuscript starts a new song.
+- Tempo, time signature and detail are shared by all layers, so they're locked once there are two or more: set them first.
+- Layers are saved in Thy Library and in project files (notes only, never audio). Exports (PDF, MusicXML…) still contain the layer you're editing; all parts come in a later phase.
+
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 

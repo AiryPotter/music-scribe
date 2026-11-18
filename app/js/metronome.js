@@ -46,8 +46,9 @@ export function clickSound(ctx, t, accent, dest = ctx.destination) {
 
 export class Metronome {
   /** leak: optional extra destination for the ticks (the demo uses it to imitate speakers heard by the mic) */
-  constructor(ctx, { bpm = 100, meter = 4, onBeat = () => {}, leak = null } = {}) {
+  constructor(ctx, { bpm = 100, meter = 4, onBeat = () => {}, leak = null, beats = 0 } = {}) {
     this.ctx = ctx;
+    this.beats = beats; // > 0: only this many ticks (a count-in), then silence
     this.leak = leak;
     this.bpm = bpm;
     this.meter = meter;
@@ -70,6 +71,7 @@ export class Metronome {
 
   _tick() {
     while (this.next < this.ctx.currentTime + 0.15) {
+      if (this.beats && this.beat >= this.beats) break;
       const b = this.beat, t = this.next;
       this._click(t, b % this.meter === 0);
       const delay = Math.max(0, (t - this.ctx.currentTime) * 1000);

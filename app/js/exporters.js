@@ -250,7 +250,7 @@ export function validateProject(data) {
   const bpm = Number(t.bpm), meter = Number(t.meter);
   if (!(bpm >= 20 && bpm <= 400) || ![2, 3, 4].includes(meter)) throw damaged();
   if (data.take.score.events.length > 20000) throw damaged();
-  const events = data.take.score.events.map((e) => {
+  const cleanEvents = (list) => list.map((e) => {
     if (!e || !int(e.slot) || e.slot < 0 || !int(e.len) || e.len < 1 || !Array.isArray(e.notes) || !e.notes.length) throw damaged();
     const seen = new Set();
     const notes = [];
@@ -265,15 +265,34 @@ export function validateProject(data) {
     const ev = { slot: e.slot, len: Math.min(e.len, 256), notes: notes.sort((a, b) => a.midi - b.midi).slice(0, 6) };
     if (typeof e.chord === 'string') ev.chord = e.chord.slice(0, 20);
     return ev;
-  }).sort((a, b) => a.slot - b.slot);
-  for (let i = 0; i < events.length - 1; i++) {
-    if (events[i].slot === events[i + 1].slot) throw damaged();
-    events[i].len = Math.min(events[i].len, events[i + 1].slot - events[i].slot); // notes never overlap
-  }
+  }).sort((a, b) => a.slot - b.slot).map((ev, i, all) => {
+    if (all[i + 1] && ev.slot === all[i + 1].slot) throw damaged();
+    if (all[i + 1]) ev.len = Math.min(ev.len, all[i + 1].slot - ev.slot); // notes never overlap
+    return ev;
+  });
+  const events = cleanEvents(data.take.score.events);
   const num = (x) => typeof x === 'number' && Number.isFinite(x);
-  const notes = (Array.isArray(data.take.notes) ? data.take.notes : [])
+  const cleanNotes = (list) => (Array.isArray(list) ? list : [])
     .filter((n) => n && int(n.midi) && num(n.start) && num(n.end) && n.end > n.start)
     .map((n) => ({ midi: n.midi, start: n.start, end: n.end, amp: num(n.amp) ? n.amp : 0.6 }));
+  const notes = cleanNotes(data.take.notes);
+  // layers (up to 4 parts): each with its own notes; the song's tempo, time and key are shared
+  let layers;
+  if (Array.isArray(data.take.layers) && data.take.layers.length > 1) {
+    if (data.take.layers.length > 4) throw damaged();
+    const hues = new Set();
+    layers = data.take.layers.map((L, k) => {
+      if (!L || !Array.isArray(L.events) || L.events.length > 20000) throw damaged();
+      let hue = int(L.hue) && L.hue >= 0 && L.hue < 4 && !hues.has(L.hue) ? L.hue : [0, 1, 2, 3].find((h) => !hues.has(h));
+      hues.add(hue);
+      return {
+        name: String(L.name || `Layer ${k + 1}`).slice(0, 24), hue,
+        mute: !!L.mute, thin: !!L.thin, vol: num(L.vol) ? Math.max(0, Math.min(1.5, L.vol)) : 1,
+        source: String(L.source || 'project').slice(0, 20), notes: cleanNotes(L.notes), events: cleanEvents(L.events),
+      };
+    });
+  }
+  const active = layers ? (int(data.take.active) && data.take.active >= 0 && data.take.active < layers.length ? data.take.active : 0) : undefined;
   const g = data.guitar || {};
   return {
     format: PROJECT_FORMAT,
@@ -285,7 +304,8 @@ export function validateProject(data) {
     take: {
       source: String(data.take.source || 'project').slice(0, 20),
       notes,
-      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, events, ...cleanKey(data.take.score.key) },
+      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, events: layers ? layers[active].events : events, ...cleanKey(data.take.score.key) },
+      ...(layers ? { layers, active } : {}),
     },
   };
 }
