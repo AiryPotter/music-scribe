@@ -101,3 +101,6 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - Export sheet: **Layers: All layers / This layer** (shown when a song has 2+ layers with notes; remembered).
 - MusicXML: a part per layer (name, own MIDI channel, pan); Guitar Pro is made from it. MIDI: type 1, a track per layer. Text tab: a section per layer.
 - PDF/image/SVG: every layer bold in its colour, colour key in the heading line, tab of the active layer. The layer styles are embedded in the SVG so rendered files keep them.
+
+## Layers, phase 4: Harmony (2026-11-18)
+- **+ 3rd / + 6th** chips after + Layer: a new layer copying the active one 2 or 5 scale steps up in the key (chords too; notes above E6 drop an octave), at 80% volume, named "<layer> · 3rd up". Undo-able; off at 4 layers or when the layer is empty.

@@ -103,6 +103,7 @@ Write a melody, then add up to **3 more guitar parts** (backup, harmony, bass li
 - **▶ plays every layer together**, each placed a little left or right so you can tell them apart. 🔊/🔇 on a layer mutes it; **Volume** sets its level. Rename a layer by typing in its name box; **Delete layer** has Undo.
 - Begin on a song with layers records **the layer you're editing** again (Undo brings the old one back). Clear Thy Manuscript starts a new song.
 - Tempo, time signature and detail are shared by all layers, so they're locked once there are two or more: set them first.
+- **+ 3rd / + 6th (Harmony):** adds a new layer that copies the one you're on, every note a 3rd or a 6th higher **in the song's key** (in E major: E → G♯, F♯ → A…), so you can hear a harmony part without playing it. Edit any note like normal; Undo takes it away.
 - Layers are saved in Thy Library and in project files (notes only, never audio).
 - **Exporting layers:** the export sheet has a **Layers** choice, *All layers* or *This layer*:
   - **MusicXML / Guitar Pro:** one part per layer, named after it (MuseScore, Sibelius, Guitar Pro open it as a quartet score).

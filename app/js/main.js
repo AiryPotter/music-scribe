@@ -1171,6 +1171,32 @@ function addLayer() {
   layoutTake(take);
   setStatus(`${name} added · tap Begin to record it while the others play (headphones help), or tap a rest to write notes in`);
 }
+/**
+ * Harmony: a new layer that copies the one you're on, every note moved up a 3rd (steps = 2) or a
+ * 6th (steps = 5) along the song's key, so it stays in key (E → G♯ in E major, F♯ → A…).
+ */
+function addHarmony(steps) {
+  if (!take?.score || session || writing() || layersOf(take).length >= MAX_LAYERS) return;
+  syncLayer();
+  const src = take.layers[take.active];
+  if (!src.events.length) { showToast('This layer has no notes to harmonise yet.'); return; }
+  const fifths = take.score.key?.fifths ?? 0;
+  const up = (m) => { let x = m; for (let i = 0; i < steps; i++) x = E.keyStep(x, 1, fifths); while (x > 86) x -= 12; return x; };
+  const events = src.events.map((ev) => {
+    const notes = [...new Set(ev.notes.map((n) => up(n.midi)))].sort((a, b) => a - b).map((midi) => ({ midi }));
+    return { slot: ev.slot, len: ev.len, notes };
+  });
+  pushHistory();
+  const used = new Set(take.layers.map((L) => L.hue));
+  const hue = [0, 1, 2, 3].find((h) => !used.has(h));
+  const name = `${src.name} · ${steps === 2 ? '3rd' : '6th'} up`.slice(0, 24);
+  take.layers.push({ name, hue, events, notes: [], source: 'harmony', mute: false, vol: 0.8, thin: false });
+  take.edited = true;
+  useLayer(take.layers.length - 1);
+  layoutTake(take);
+  setStatus(`${name} added · ▶ plays it with the others · edit any note, or Undo to take it away`);
+  audition(events[0].notes.map((n) => n.midi).concat(src.events[0].notes.map((n) => n.midi)));
+}
 function deleteLayer() {
   if (!take?.score || session || writing() || !(take.layers?.length > 1)) return;
   syncLayer();
@@ -1240,6 +1266,19 @@ function syncLayerUi() {
   add.title = add.disabled ? 'Up to 4 layers' : 'Add a layer: record a backup part with the others playing';
   add.textContent = '+ Layer';
   chips.appendChild(add);
+  // Harmony: copy this layer a 3rd or 6th up in the key
+  const full = take.layers.length >= MAX_LAYERS || writing() || !take.score.events.length;
+  for (const [steps, label] of [[2, '+ 3rd'], [5, '+ 6th']]) {
+    const h = document.createElement('button');
+    h.type = 'button';
+    h.className = 'layer-chip add harmony';
+    h.dataset.harmony = String(steps);
+    h.disabled = full;
+    h.textContent = label;
+    h.title = full ? (take.score.events.length ? 'Up to 4 layers' : 'This layer has no notes yet')
+      : `Harmony: a new layer that copies ${take.layers[take.active].name} a ${steps === 2 ? '3rd' : '6th'} higher, in the key`;
+    chips.appendChild(h);
+  }
   $('layerRow').hidden = !layered;
   if (layered) {
     const L = take.layers[take.active];
@@ -1254,6 +1293,7 @@ $('layerChips').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b || !take?.score || session) return;
   if (b.dataset.add) return addLayer();
+  if (b.dataset.harmony) return addHarmony(Number(b.dataset.harmony));
   if (b.dataset.all) { allView = !allView; store.set('allView', allView ? '1' : '0'); layoutTake(take, { quiet: true }); return; }
   if (b.dataset.mute !== undefined) return changeLayer(Number(b.dataset.mute), (L) => { L.mute = !L.mute; }, { replay: true });
   const k = Number(b.dataset.layer);
