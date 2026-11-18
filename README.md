@@ -105,6 +105,9 @@ Write a melody, then add up to **3 more guitar parts** (backup, harmony, bass li
 - Tempo, time signature and detail are shared by all layers, so they're locked once there are two or more: set them first.
 - Layers are saved in Thy Library and in project files (notes only, never audio). Exports (PDF, MusicXML…) still contain the layer you're editing; all parts come in a later phase.
 
+## Shorter wait after Cease
+Mozart now writes the take out **while you play**: about once a second the newest audio goes (in memory only) to the background transcriber, which works through it in ~4-second slices, each with a second of overlap either side so the joins come out exactly like one long pass. After Cease only the last few seconds are left. A 30-second take is ready in about **3 seconds instead of ~14**, and the wait stays about that long however long you play. If anything goes wrong mid-way, it quietly falls back to one long pass. Still nothing is kept: the audio is dropped as soon as the notes are written.
+
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 

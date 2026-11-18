@@ -130,3 +130,13 @@ Bench take `Low E climb 1-19 (one string)` (octave ghost after fret 2, sympathet
 | Missed | 0 | 0 |
 
 Every other bench song's tab is unchanged (Simple and Detailed), no real notes are removed, and the pedal/riff guards are untouched.
+
+## Writing out while playing (2026-11-18)
+The take is transcribed in ~4 s slices during recording (1 s context either side). Basic Pitch's output frames are 254.68 samples apart (2 s windows stepping by 36,164 samples, 142 frames kept each), and its frame→time conversion allows for that, so slices are cut and placed on that same grid. Placing them on a 256-sample grid made notes drift ~0.4% early slice after slice (−178 ms by 45 s); on the right grid a 52 s test take times notes exactly like one long pass (−7 ms throughout, ±6 ms spread, 100/100 found). The long pass itself does not drift (an earlier "fix" that assumed it did was measured wrong and dropped).
+
+| | One long pass after Cease | Written while playing |
+|---|---|---|
+| Wait after Cease, 30 s take | ~13.6 s | **~3.0 s** |
+| Note timing, 52 s take | −7.6 / −5.9 ms (start / end) | −7.0 / −5.3 ms |
+
+Bench (one seed, Detailed): 86% note score, 66% exact, tempo 8/8, meter 8/8 (the long pass is unchanged by this work).

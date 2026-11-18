@@ -27,6 +27,17 @@ export class Recorder {
     return r;
   }
 
+  /** The audio captured since the last call (for writing the take out while it's played). */
+  takeNew() {
+    const from = this.taken || 0;
+    const fresh = this.chunks.slice(from);
+    this.taken = this.chunks.length;
+    const out = new Float32Array(fresh.reduce((n, c) => n + c.length, 0));
+    let off = 0;
+    for (const c of fresh) { out.set(c, off); off += c.length; }
+    return out;
+  }
+
   /** Stop recording; resolves to { samples: Float32Array, sampleRate, startTime }. */
   async stop() {
     const flushed = new Promise((res) => { this._resolveFlush = res; });

@@ -7,7 +7,7 @@ import { renderScore, previewModel } from './score.js';
 import { Mozart } from './mozart.js';
 import { Recorder } from './recorder.js';
 import { Metronome } from './metronome.js';
-import { transcribe, preloadTranscriber, cancelTranscription } from './transcribe.js';
+import { transcribe, preloadTranscriber, cancelTranscription, startStream } from './transcribe.js';
 import { onsetEvents, estimateTempo, phaseFor, detectMeter, quantize, layoutBars, SLOTS_PER_BEAT } from './rhythm.js';
 import { nameChord } from './chords.js';
 import * as E from './edits.js';
@@ -55,8 +55,8 @@ let selectMode = false;   // Select tool: each tap adds/removes a note instead o
 // ---------- layers: up to 4 parts on one manuscript (melody, backup…), sharing tempo, time and key ----------
 // take.layers = [{ name, hue, events, notes, source, mute, vol, thin }]; take.active = the one being edited.
 // take.score.events IS the active layer's events (same array), so every editing tool works on it unchanged.
-const LAYER_HUES = ['#3b8fd0', '#7b4fb3', '#7d0010', '#1f6b4f']; // sky blue, violet, arterial red, evergreen
-const LAYER_FADE = [0.45, 0.45, 0.8, 0.5]; // how solid a faint layer is (red fades to pink, so it stays darker)
+const LAYER_HUES = ['#3b8fd0', '#7b4fb3', '#a3001b', '#1f6b4f']; // sky blue, violet, arterial red, evergreen
+const LAYER_FADE = [0.45, 0.45, 0.55, 0.5]; // how solid a faint layer is (red fades to pink, so it stays darker)
 const LAYER_HUE_NAMES = ['sky blue', 'violet', 'red', 'green'];
 const LAYER_PAN = [0, -0.35, 0.35, -0.15];
 const MAX_LAYERS = 4;
@@ -311,7 +311,11 @@ async function start() {
   try {
     session = ui.mic.value === '__demo__' ? openDemo() : await openMic(store.get('mic', ''));
     recorder = await Recorder.create(session.ctx, session.source);
+    // write the take out while it's played (in memory only), so Cease has only the last bit left to do
+    session.stream = startStream(session.ctx.sampleRate);
+    session.feedTimer = setInterval(() => { if (session && recorder) session.stream.feed(recorder.takeNew()); }, 1000);
   } catch (err) {
+    if (session?.feedTimer) clearInterval(session.feedTimer);
     session?.close?.();
     session = null;
     busy = false;
@@ -425,6 +429,9 @@ async function stop() {
   try { rec = await recorder.stop(); } catch { rec = null; }
   const clickInfo = session.clickInfo;
   const overdub = session.overdub || null;
+  clearInterval(session.feedTimer);
+  const stream = session.stream || null;
+  if (overdub) overdub.stream = stream;
   overdub?.backing.stop(false);
   session.close();
   session = null;
@@ -445,6 +452,7 @@ async function stop() {
     mozart.set('asleep');
     setStatus('Live preview');
     if (overdub && take === overdub.song) layoutTake(take);
+    stream?.cancel();
     scheduleRender();
     return;
   }
@@ -458,6 +466,7 @@ async function stop() {
     rec,
     live: notes.filter((n) => n.end).map((n) => ({ midi: n.midi, start: rel(n.start), end: rel(n.end), amp: 0.6 })),
     click: clickInfo ? { ...clickInfo, downbeat: rel(clickInfo.downbeat) + latency, first: rel(clickInfo.first) + latency } : null,
+    stream,
   };
   await analyzeTake();
 }
@@ -511,16 +520,22 @@ async function analyzeTake() {
   try {
     const recSecs = t.rec.samples.length / t.rec.sampleRate;
     t.clickTimes = t.click ? beatTimes(t.click, recSecs) : null;
-    result = await transcribe(t.rec.samples, t.rec.sampleRate, (p, mode) => {
+    const progress = (p, mode) => {
       const pct = `${Math.round(p * 100)}%`;
       mozart.say(pct);
       if (take === t) setProgress(p, mode === 'slow');
-    }, { clickTimes: t.clickTimes });
+    };
+    const t0 = performance.now();
+    result = t.stream
+      ? await t.stream.finish(t.rec.samples, progress, { clickTimes: t.clickTimes }) // most of it was written while you played
+      : await transcribe(t.rec.samples, t.rec.sampleRate, progress, { clickTimes: t.clickTimes });
+    t.waitMs = Math.round(performance.now() - t0);
   } catch (err) {
     if (err?.name === 'AbortError') { t.rec = null; return; } // stopped by Clear / Begin
     console.warn('Accurate pass failed, using live notes', err);
   }
   t.rec = null; // the recording is thrown away here: only the written notes are kept
+  t.stream = null;
   if (take === t) endProgress();
   updateUndoUi();
   if (take !== t) return; // a new take started meanwhile
@@ -1277,7 +1292,10 @@ async function analyzeLayer(od, rec, click, latency, live) {
     : beatTimes({ ...click, first: rel(click.first) + latency, downbeat }, recSecs);
   let result = null;
   try {
-    result = await transcribe(rec.samples, rec.sampleRate, (x, mode) => { mozart.say(`${Math.round(x * 100)}%`); if (take === song) setProgress(x, mode === 'slow'); }, { clickTimes });
+    const progress = (x, mode) => { mozart.say(`${Math.round(x * 100)}%`); if (take === song) setProgress(x, mode === 'slow'); };
+    result = od.stream
+      ? await od.stream.finish(rec.samples, progress, { clickTimes })
+      : await transcribe(rec.samples, rec.sampleRate, progress, { clickTimes });
   } catch (err) {
     if (err?.name === 'AbortError') { song.overdubbing = false; return; }
     console.warn('Accurate pass failed, using live notes', err);
