@@ -62,6 +62,7 @@ function sliceImage(svg, info, y0, y1, outW) {
 }
 
 function infoLine(song) {
+  if (song.legend) return [song.legend];
   return [
     song.tuningName && song.tuningName !== 'Standard' ? `Tuning ${song.tuningLetters}` : 'Standard tuning',
     song.capo ? `Capo ${song.capo}` : '',

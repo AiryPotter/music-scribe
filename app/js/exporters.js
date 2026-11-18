@@ -72,11 +72,13 @@ export function toMusicXML(song) {
   if (song.composer) L.push(`<creator type="composer">${xmlEsc(song.composer)}</creator>`);
   L.push(`<encoding><software>Music Scribe</software><encoding-date>${date}</encoding-date></encoding>`);
   L.push('</identification>');
-  L.push('<part-list><score-part id="P1"><part-name>Guitar</part-name>'
-    + '<score-instrument id="P1-I1"><instrument-name>Acoustic Guitar</instrument-name></score-instrument>'
-    + '<midi-instrument id="P1-I1"><midi-channel>1</midi-channel><midi-program>26</midi-program></midi-instrument>'
-    + '</score-part></part-list>');
-  L.push('<part id="P1">');
+  // one part per layer (a quartet opens as four guitar parts), or one part for a single layer
+  const parts = song.parts?.length ? song.parts : [{ name: 'Guitar', measures: song.measures }];
+  const channel = (k) => (k >= 9 ? k + 2 : k + 1); // skip MIDI channel 10 (drums)
+  L.push('<part-list>' + parts.map((pt, k) => `<score-part id="P${k + 1}"><part-name>${xmlEsc(pt.name || 'Guitar')}</part-name>`
+    + `<score-instrument id="P${k + 1}-I1"><instrument-name>Acoustic Guitar</instrument-name></score-instrument>`
+    + `<midi-instrument id="P${k + 1}-I1"><midi-channel>${channel(k)}</midi-channel><midi-program>26</midi-program>${parts.length > 1 ? `<pan>${[0, -35, 35, -15][k] ?? 0}</pan>` : ''}</midi-instrument>`
+    + '</score-part>').join('') + '</part-list>');
 
   const noteXml = (p, staff, voice) => {
     const [type, dots] = TYPE[p.slots] || ['quarter', 0];
@@ -104,7 +106,9 @@ export function toMusicXML(song) {
     }).join('');
   };
 
-  song.measures.forEach((bar, i) => {
+  parts.forEach((pt, partIdx) => {
+  L.push(`<part id="P${partIdx + 1}">`);
+  pt.measures.forEach((bar, i) => {
     L.push(`<measure number="${i + 1}">`);
     if (i === 0) {
       const tunings = song.strings.map((m, line) => {
@@ -117,7 +121,7 @@ export function toMusicXML(song) {
         + '<clef number="2"><sign>TAB</sign><line>5</line></clef>'
         + `<staff-details number="2"><staff-lines>${song.strings.length}</staff-lines>${tunings}${song.capo ? `<capo>${song.capo}</capo>` : ''}</staff-details>`
         + '</attributes>');
-      L.push(`<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${Math.round(song.bpm)}</per-minute></metronome></direction-type><staff>1</staff><sound tempo="${Math.round(song.bpm)}"/></direction>`);
+      if (partIdx === 0) L.push(`<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${Math.round(song.bpm)}</per-minute></metronome></direction-type><staff>1</staff><sound tempo="${Math.round(song.bpm)}"/></direction>`);
       if (song.capo) L.push(`<direction placement="above"><direction-type><words>Capo ${song.capo}</words></direction-type><staff>1</staff></direction>`);
     }
     for (const p of bar) {
@@ -126,10 +130,12 @@ export function toMusicXML(song) {
     }
     L.push(`<backup><duration>${barSlots}</duration></backup>`);
     for (const p of bar) L.push(noteXml(p, 2, 5));
-    if (i === song.measures.length - 1) L.push('<barline location="right"><bar-style>light-heavy</bar-style></barline>');
+    if (i === pt.measures.length - 1) L.push('<barline location="right"><bar-style>light-heavy</bar-style></barline>');
     L.push('</measure>');
   });
-  L.push('</part></score-partwise>');
+  L.push('</part>');
+  });
+  L.push('</score-partwise>');
   return new Blob([L.join('\n')], { type: 'application/vnd.recordare.musicxml+xml' });
 }
 
@@ -139,36 +145,52 @@ function vlq(n) {
   while ((n >>= 7)) bytes.unshift((n & 0x7f) | 0x80);
   return bytes;
 }
-/** Standard MIDI file (type 0): tempo, time signature, steel-string guitar, every note. */
+/**
+ * Standard MIDI file: tempo, time signature, key, steel-string guitar, every note.
+ * One layer → type 0 (one track). Several layers → type 1: one track per layer, each on its own
+ * channel and named after the layer, so a DAW shows Melody, Backup, Bass… as separate tracks.
+ */
 export function toMIDI(song) {
   const PPQ = 480, perSlot = PPQ / 4;
-  const ev = []; // [tick, order, bytes]
-  for (const e of song.events) {
-    for (const n of e.notes) {
-      ev.push([e.slot * perSlot, 1, [0x90, n.midi, 88]]);
-      ev.push([(e.slot + e.len) * perSlot, 0, [0x80, n.midi, 0]]);
-    }
-  }
-  ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const parts = song.parts?.length ? song.parts : [{ name: song.title || 'Guitar', events: song.events }];
   const usPerBeat = Math.round(60000000 / song.bpm);
-  const name = enc.encode((song.title || 'Music Scribe').slice(0, 100));
-  const data = [
-    0, 0xff, 0x03, ...vlq(name.length), ...name,
-    0, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff,
-    0, 0xff, 0x58, 0x04, song.meter, 2, 24, 8,
-    0, 0xff, 0x59, 0x02, (song.key?.fifths || 0) & 0xff, song.key?.mode === 'minor' ? 1 : 0, // key signature
-    0, 0xc0, 25, // program 26 (1-based): Acoustic Guitar (steel)
-  ];
-  let last = 0;
-  for (const [tick, , bytes] of ev) {
-    data.push(...vlq(tick - last), ...bytes);
-    last = tick;
-  }
-  data.push(0, 0xff, 0x2f, 0x00);
-  const header = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, (PPQ >> 8) & 0xff, PPQ & 0xff];
-  const len = data.length;
-  const track = [0x4d, 0x54, 0x72, 0x6b, (len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff];
-  return new Blob([new Uint8Array([...header, ...track, ...data])], { type: 'audio/midi' });
+  const meta = (title) => {
+    const name = enc.encode((title || 'Music Scribe').slice(0, 100));
+    return [
+      0, 0xff, 0x03, ...vlq(name.length), ...name,
+      0, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff,
+      0, 0xff, 0x58, 0x04, song.meter, 2, 24, 8,
+      0, 0xff, 0x59, 0x02, (song.key?.fifths || 0) & 0xff, song.key?.mode === 'minor' ? 1 : 0, // key signature
+    ];
+  };
+  const noteData = (events, ch, name) => {
+    const ev = []; // [tick, order, bytes]
+    for (const e of events) {
+      for (const n of e.notes) {
+        ev.push([e.slot * perSlot, 1, [0x90 | ch, n.midi, 88]]);
+        ev.push([(e.slot + e.len) * perSlot, 0, [0x80 | ch, n.midi, 0]]);
+      }
+    }
+    ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const label = name ? enc.encode(name.slice(0, 60)) : null;
+    const data = label ? [0, 0xff, 0x03, ...vlq(label.length), ...label] : [];
+    data.push(0, 0xc0 | ch, 25); // program 26 (1-based): Acoustic Guitar (steel)
+    if (parts.length > 1) data.push(0, 0xb0 | ch, 10, [64, 44, 84, 57][parts.indexOf(parts.find((p) => p.events === events))] ?? 64); // pan, like playback
+    let last = 0;
+    for (const [tick, , bytes] of ev) { data.push(...vlq(tick - last), ...bytes); last = tick; }
+    return data;
+  };
+  const chunk = (data) => {
+    const all = [...data, 0, 0xff, 0x2f, 0x00];
+    const len = all.length;
+    return [0x4d, 0x54, 0x72, 0x6b, (len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff, ...all];
+  };
+  let tracks;
+  if (parts.length === 1) tracks = [chunk([...meta(song.title), ...noteData(parts[0].events, 0, null)])];
+  else tracks = [chunk(meta(song.title)), ...parts.map((p, k) => chunk(noteData(p.events, k >= 9 ? k + 1 : k, p.name)))];
+  const type = parts.length === 1 ? 0 : 1;
+  const header = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, type, 0, tracks.length, (PPQ >> 8) & 0xff, PPQ & 0xff];
+  return new Blob([new Uint8Array([...header, ...tracks.flat()])], { type: 'audio/midi' });
 }
 
 // ---------- ASCII tab ----------
@@ -179,7 +201,7 @@ export function toTextTab(song, { lineWidth = 78 } = {}) {
   const labels = song.strings.map((m, i) => (i === S - 1 ? FLATS[pc(m)].toLowerCase() : FLATS[pc(m)]));
   const labelW = Math.max(...labels.map((l) => l.length));
   // one block of text per bar: chord line + one line per string (index 0 = highest string, printed first)
-  const bars = song.measures.map((bar) => {
+  const barsOf = (measures) => measures.map((bar) => {
     // a note on an off-16th needs 2 characters per 16th; otherwise 1 is enough (and reads better)
     let at = 0, odd = false;
     for (const p of bar) { if (!p.rest && !p.tieFromPrev && at % 2) odd = true; at += p.slots; }
@@ -209,6 +231,10 @@ export function toTextTab(song, { lineWidth = 78 } = {}) {
   if (song.composer) out.push(`by ${song.composer}`);
   const info = [`Tuning: ${song.tuningName}`, song.capo ? `Capo ${song.capo}` : '', `Tempo: ${Math.round(song.bpm)} bpm`, `Time: ${song.meter}/4`].filter(Boolean);
   out.push(info.join(' | '), '');
+  const parts = song.parts?.length ? song.parts : [{ measures: song.measures }];
+  parts.forEach((pt) => {
+  if (pt.name && parts.length > 1) out.push(`== ${pt.name} ==`, '');
+  const bars = barsOf(pt.measures);
   let i = 0;
   while (i < bars.length) {
     const sys = [];
@@ -224,6 +250,7 @@ export function toTextTab(song, { lineWidth = 78 } = {}) {
     }
     out.push('');
   }
+  });
   out.push('Written down with Music Scribe');
   return new Blob([out.join('\n')], { type: 'text/plain;charset=utf-8' });
 }

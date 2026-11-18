@@ -7,17 +7,18 @@ import { dropboxReady, dropboxConnected, beginConnect, openSignInWindow, uploadT
 import { folderSupported, loadFolder, folderName, ensureFolder, saveToFolder } from './dropfolder.js';
 
 export const FORMATS = [
-  { id: 'pdf', name: 'PDF', what: 'Sheet music to print or send', ext: 'pdf', type: 'application/pdf', opts: ['layout', 'paper', 'look'] },
-  { id: 'image', name: 'Image', what: 'PNG for Instagram, TikTok, messages', ext: 'png', type: 'image/png', opts: ['size', 'layout', 'look'] },
-  { id: 'musicxml', name: 'MusicXML', what: 'MuseScore, Sibelius, Finale, Dorico', ext: 'musicxml', type: 'application/vnd.recordare.musicxml+xml' },
-  { id: 'gp', name: 'Guitar Pro', what: 'Guitar Pro 7 / 8 (.gp)', ext: 'gp', type: 'application/x-guitar-pro' },
-  { id: 'midi', name: 'MIDI', what: 'GarageBand, FL Studio, any DAW', ext: 'mid', type: 'audio/midi' },
-  { id: 'txt', name: 'Text tab', what: 'Paste into forums, notes, chats', ext: 'txt', type: 'text/plain' },
-  { id: 'svg', name: 'SVG', what: 'Sharp at any size: slides, design apps', ext: 'svg', type: 'image/svg+xml', opts: ['layout', 'look'] },
+  { id: 'pdf', name: 'PDF', what: 'Sheet music to print or send', ext: 'pdf', type: 'application/pdf', opts: ['layers', 'layout', 'paper', 'look'] },
+  { id: 'image', name: 'Image', what: 'PNG for Instagram, TikTok, messages', ext: 'png', type: 'image/png', opts: ['layers', 'size', 'layout', 'look'] },
+  { id: 'musicxml', name: 'MusicXML', what: 'MuseScore, Sibelius, Finale, Dorico', ext: 'musicxml', type: 'application/vnd.recordare.musicxml+xml', opts: ['layers'] },
+  { id: 'gp', name: 'Guitar Pro', what: 'Guitar Pro 7 / 8 (.gp)', ext: 'gp', type: 'application/x-guitar-pro', opts: ['layers'] },
+  { id: 'midi', name: 'MIDI', what: 'GarageBand, FL Studio, any DAW', ext: 'mid', type: 'audio/midi', opts: ['layers'] },
+  { id: 'txt', name: 'Text tab', what: 'Paste into forums, notes, chats', ext: 'txt', type: 'text/plain', opts: ['layers'] },
+  { id: 'svg', name: 'SVG', what: 'Sharp at any size: slides, design apps', ext: 'svg', type: 'image/svg+xml', opts: ['layers', 'layout', 'look'] },
   { id: 'project', name: 'Project', what: 'Reopen and keep editing later', ext: 'musicscribe.json', type: 'application/json' },
 ];
 
 const OPTIONS = {
+  layers: { label: 'Layers', choices: [['all', 'All layers'], ['one', 'This layer']] },
   layout: { label: 'Show', choices: [['both', 'Notes + tab'], ['notation', 'Notes'], ['tab', 'Tab']] },
   paper: { label: 'Paper', choices: [['a4', 'A4'], ['letter', 'Letter']] },
   size: { label: 'Size', choices: [['square', 'Square post'], ['story', 'Story 9:16'], ['page', 'Whole page']] },
@@ -43,6 +44,7 @@ export function createExportSheet(ctx) {
     size: ctx.store.get('exSize', 'square'),
     look: ctx.store.get('exLook', 'white'),
     imageLook: ctx.store.get('exImageLook', 'parchment'),
+    layers: ctx.store.get('exLayers', 'all'),
   };
   let cache = null;       // { key, file }
   let busy = false;
@@ -82,7 +84,9 @@ export function createExportSheet(ctx) {
       b.classList.toggle('on', ff.id === f.id);
       b.setAttribute('aria-checked', String(ff.id === f.id));
     });
-    el.options.querySelectorAll('.ex-opt').forEach((row) => { row.hidden = !(f.opts || []).includes(row.dataset.opt); });
+    el.options.querySelectorAll('.ex-opt').forEach((row) => {
+      row.hidden = !(f.opts || []).includes(row.dataset.opt) || (row.dataset.opt === 'layers' && !ctx.layered?.());
+    });
     el.options.querySelectorAll('[data-opt]').forEach((b) => {
       if (!b.dataset.val) return;
       const cur = b.dataset.opt === 'look' ? look() : st[b.dataset.opt];
@@ -104,10 +108,11 @@ export function createExportSheet(ctx) {
   // ---------- make the file ----------
   async function makeFile() {
     const f = fmt();
-    const song = ctx.getSong();
-    const key = JSON.stringify([f.id, st.layout, st.paper, st.size, look(), song.title, song.composer, ctx.version()]);
+    const which = ctx.layered?.() ? st.layers : 'one';
+    const song = ctx.getSong(which);
+    const key = JSON.stringify([f.id, which, st.layout, st.paper, st.size, look(), song.title, song.composer, ctx.version()]);
     if (cache?.key === key) return cache.file;
-    const model = ctx.getModel();
+    const model = ctx.getModel(which);
     const o = { layout: st.layout, paper: st.paper, size: st.size, look: look() };
     let blob;
     switch (f.id) {

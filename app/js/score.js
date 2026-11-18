@@ -331,6 +331,12 @@ export function renderScore(el, model, opts = {}) {
   // highlight behind the selection, tap areas on top of everything
   const svg = el.querySelector('svg');
   if (!svg) return info;
+  if (ghosts.length || mainStyle) { // layer looks, inside the SVG itself so PDFs and images keep them
+    const style = document.createElementNS(SVG_NS, 'style');
+    style.textContent = '.layer.thin{opacity:var(--fade,.45)}.layer.thin path{stroke-width:.8px}'
+      + '.layer.bold path{stroke:var(--layer);stroke-width:1.6px}.layer-ties path{fill:var(--layer);stroke:var(--layer)}';
+    svg.insertBefore(style, svg.firstChild);
+  }
   for (const b of bands) {
     const r = document.createElementNS(SVG_NS, 'rect');
     r.setAttribute('x', b.x0 + 1); r.setAttribute('y', b.y0);

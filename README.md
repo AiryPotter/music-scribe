@@ -103,7 +103,12 @@ Write a melody, then add up to **3 more guitar parts** (backup, harmony, bass li
 - **▶ plays every layer together**, each placed a little left or right so you can tell them apart. 🔊/🔇 on a layer mutes it; **Volume** sets its level. Rename a layer by typing in its name box; **Delete layer** has Undo.
 - Begin on a song with layers records **the layer you're editing** again (Undo brings the old one back). Clear Thy Manuscript starts a new song.
 - Tempo, time signature and detail are shared by all layers, so they're locked once there are two or more: set them first.
-- Layers are saved in Thy Library and in project files (notes only, never audio). Exports (PDF, MusicXML…) still contain the layer you're editing; all parts come in a later phase.
+- Layers are saved in Thy Library and in project files (notes only, never audio).
+- **Exporting layers:** the export sheet has a **Layers** choice, *All layers* or *This layer*:
+  - **MusicXML / Guitar Pro:** one part per layer, named after it (MuseScore, Sibelius, Guitar Pro open it as a quartet score).
+  - **MIDI:** one track per layer, each on its own channel and placed left/right like playback.
+  - **Text tab:** each layer's tab in turn, under its name.
+  - **PDF, image, SVG:** every layer bold in its colour on one staff, with a colour key under the title; the tab shows the layer you're editing.
 
 ## Shorter wait after Cease
 Mozart now writes the take out **while you play**: about once a second the newest audio goes (in memory only) to the background transcriber, which works through it in ~4-second slices, each with a second of overlap either side so the joins come out exactly like one long pass. After Cease only the last few seconds are left. A 30-second take is ready in about **3 seconds instead of ~14**, and the wait stays about that long however long you play. If anything goes wrong mid-way, it quietly falls back to one long pass. Still nothing is kept: the audio is dropped as soon as the notes are written.

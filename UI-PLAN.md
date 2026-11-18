@@ -96,3 +96,8 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - Colours: sky blue #3b8fd0, violet #7b4fb3, arterial red #7d0010 (kept more solid when faint so it never turns pink), evergreen #1f6b4f.
 - Begin records the active layer with a one-bar count-in while the others play (placed left/right); leaked notes from speakers are filtered only when a real share of the played notes came back.
 - Next phases: 2 = transcribe while playing (shorter wait), 3 = export every layer as its own part, 4 = Harmony layer (copy a layer a 3rd/6th up in the key).
+
+## Layers, phase 3: export every part (2026-11-18)
+- Export sheet: **Layers: All layers / This layer** (shown when a song has 2+ layers with notes; remembered).
+- MusicXML: a part per layer (name, own MIDI channel, pan); Guitar Pro is made from it. MIDI: type 1, a track per layer. Text tab: a section per layer.
+- PDF/image/SVG: every layer bold in its colour, colour key in the heading line, tab of the active layer. The layer styles are embedded in the SVG so rendered files keep them.

@@ -1700,9 +1700,50 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- export, share, Dropbox, projects (M4) ----------
 let layoutVersion = 0;
-function buildSong() {
+/** One layer laid out for export: bars (as long as the song), tab positions and chord names. */
+function partMeasures(events, barSlots, nBars, fifths) {
+  const bars = layoutBars(events, barSlots, nBars);
+  const pk = new FretPicker(tuningStrings(), guitar.capo);
+  let lastChord = '';
+  const placed = events.map((ev) => {
+    const keys = ev.notes.map((n) => n.midi).sort((a, b) => a - b);
+    const pos = pk.pickChord(keys, ev.notes.map((n) => n.str));
+    const auto = keys.length >= 2 ? nameChord(keys, fifths) : '';
+    let show = '';
+    if (ev.chord !== undefined) { show = ev.chord; if (show) lastChord = show; } else if (auto) { if (auto !== lastChord) show = auto; lastChord = auto; }
+    return { keys, positions: pos.map((x) => (x.pos ? { str: x.pos.string, fret: x.pos.fret } : null)), show };
+  });
+  return bars.map((bar) => bar.map((p) => (p.rest ? { slots: p.slots, rest: true } : {
+    slots: p.slots, keys: placed[p.evIdx].keys, positions: placed[p.evIdx].positions,
+    chord: p.tieFromPrev ? '' : placed[p.evIdx].show, tieToNext: p.tieToNext, tieFromPrev: p.tieFromPrev,
+  })));
+}
+/** Every layer that has notes, as parts for MusicXML / MIDI / text tab (null for a one-layer song). */
+function buildParts(t) {
+  if (!(t.layers?.length > 1)) return null;
+  syncLayer(t);
+  const barSlots = t.score.tempo.meter * SLOTS_PER_BEAT;
+  const used = t.layers.filter((L) => L.events.length);
+  if (used.length < 2) return null;
+  const nBars = Math.max(t.model.measures.length, ...used.map((L) => layoutBars(L.events, barSlots).length));
+  return used.map((L) => ({ name: L.name, hue: L.hue, events: L.events, measures: partMeasures(L.events, barSlots, nBars, t.score.key.fifths) }));
+}
+/** The page for PDF/image/SVG: every layer bold in its colour, or just the one being edited. */
+function exportModel(which) {
+  const m = { ...take.model, header: '' };
+  if (which !== 'all' || !(take.layers?.length > 1)) return { ...m, ghosts: [], layerStyle: null };
+  const A = take.layers[take.active];
+  return {
+    ...m,
+    ghosts: (m.ghosts || []).map((g) => ({ ...g, thin: false })),
+    layerStyle: { color: LAYER_HUES[A.hue], fade: LAYER_FADE[A.hue], thin: false },
+  };
+}
+
+function buildSong(which = 'one') {
   const t = take;
   syncLayer(t);
+  const parts = which === 'all' ? buildParts(t) : null;
   const strings = tuningStrings();
   return {
     title: t.title || '',
@@ -1716,6 +1757,9 @@ function buildSong() {
     tuningLetters: tuningLetters(strings),
     measures: t.model.measures,
     events: t.score.events,
+    parts: parts || undefined,
+    // colour key for PDFs and images with every layer on them
+    legend: parts ? parts.map((p) => `${p.name} (${LAYER_HUE_NAMES[p.hue]})`).join('   ·   ') + (t.layers[t.active] ? `   ·   tab: ${t.layers[t.active].name}` : '') : undefined,
     project: {
       format: PROJECT_FORMAT,
       version: 1,
@@ -1802,7 +1846,8 @@ function openProject(data, saved = null) {
 const exportSheet = createExportSheet({
   store,
   getSong: buildSong,
-  getModel: () => ({ ...take.model, header: '', ghosts: [], layerStyle: null }), // exports: the active layer (all parts come in phase 3)
+  getModel: exportModel,
+  layered: () => (take?.layers?.filter((L) => L.events.length).length || 0) > 1,
   version: () => layoutVersion,
   hasTake: () => !!take?.model && !session,
   getTitle: () => take?.title || '',
