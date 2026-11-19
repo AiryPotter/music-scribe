@@ -193,22 +193,29 @@ export function makeNotes(bp, raw, params = {}) {
 
 /**
  * Remove notes that are really the other layers playing back through the speakers while a new
- * layer was recorded. played: [{ midi, t, dur }] (when each played note reached the mic, seconds
- * from the start of the recording). A note at the same pitch (or an octave/twelfth above it),
- * starting with a played note and not lasting longer than it, is the leak. A very loud note is
- * kept: that's the guitar being played right into the mic. Only done when the leak is real (a fair
- * share of the played notes came back): with headphones, a match is just the same note played.
+ * layer was recorded. played: [{ midi, t, dur }] (when each played note was due at the mic,
+ * seconds from the start of the recording, from the browser's latency estimate).
+ * The real delay from speaker to mic varies (Bluetooth adds a lot), so it's measured from the take:
+ * the offset where the most played notes line up with a written-down note of the same pitch (or an
+ * octave / twelfth above). If a fair share line up, the leak is real, and every note at that
+ * offset goes, however long it rings. With headphones almost nothing lines up, so nothing goes.
+ * Returns the kept notes; .leak on the result says what was found ({ delay, hits, removed }).
  */
-export function removePlaybackNotes(notes, played, { before = 0.05, after = 0.12, loud = 0.8, share = 0.3 } = {}) {
+export function removePlaybackNotes(notes, played, { tol = 0.05, loud = 0.85, share = 0.2, maxLag = 0.6 } = {}) {
   if (!played?.length || !notes.length) return notes;
   const end = Math.max(...notes.map((n) => n.end));
   const heard = played.filter((p) => p.t < end); // what played while the mic was listening
-  const leak = (n) => heard.some((p) => n.start >= p.t - before && n.start <= p.t + after
-    && [0, 12, 19].includes(n.midi - p.midi) && n.end - n.start <= p.dur + 0.3 && (n.amp ?? 0.6) < loud);
-  const hits = notes.filter(leak);
-  // with headphones almost nothing comes back: then a match is just me playing the same note
-  if (hits.length < Math.max(3, share * heard.length)) return notes;
-  return notes.filter((n) => !hits.includes(n));
+  const related = (n, p) => n.midi === p.midi || n.midi - p.midi === 12 || n.midi - p.midi === 19;
+  let best = { delay: 0, hits: -1 };
+  for (let d = -0.1; d <= maxLag + 1e-9; d += 0.01) {
+    let hits = 0;
+    for (const p of heard) if (notes.some((n) => related(n, p) && Math.abs(n.start - (p.t + d)) <= 0.035)) hits++;
+    if (hits > best.hits) best = { delay: d, hits };
+  }
+  if (best.hits < Math.max(4, share * heard.length)) return notes;
+  const kept = notes.filter((n) => !((n.amp ?? 0.6) < loud && heard.some((p) => related(n, p) && Math.abs(n.start - (p.t + best.delay)) <= tol)));
+  kept.leak = { delay: Math.round(best.delay * 1000) / 1000, hits: best.hits, removed: notes.length - kept.length };
+  return kept;
 }
 
 /**

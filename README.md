@@ -97,7 +97,7 @@ When you climb or descend one string fret by fret (3 or more notes, one fret apa
 ## Layers: a quartet on one manuscript
 Write a melody, then add up to **3 more guitar parts** (backup, harmony, bass line…) on top and hear them together.
 - **+ Layer** (under the manuscript header) adds a part. Tap **Begin** and you get a one-bar count-in at the song's tempo, then the other layers play while you play; your part is written on the same bars. (Or tap a rest in the new layer to write notes by hand.)
-- **Headphones work best.** If the other layers come out of speakers and the mic picks them up, Mozart takes those notes out again (only when that's clearly happening, so a note you really play in unison stays).
+- **Headphones work best.** If the other layers come out of speakers and the mic picks them up, Mozart takes those notes out again. It measures how late the speaker sound reaches the mic from the take itself (it varies by computer, and Bluetooth adds a lot), and only acts when a fair share of the played notes clearly came back. One catch: if you deliberately double a layer note for note (same notes, same time) while it plays through speakers, those notes are taken out too; use headphones for that.
 - **The layer you're editing is bold black.** The others are faint, each in its own colour: layer 1 **sky blue**, layer 2 **violet**, layer 3 **arterial red**, layer 4 **evergreen**. The tab shows only the layer you're editing.
 - **All** shows every layer bold in its colour; tap a layer to make it thin, tap again to make it bold.
 - **▶ plays every layer together**, each placed a little left or right so you can tell them apart. 🔊/🔇 on a layer mutes it; **Volume** sets its level. Rename a layer by typing in its name box; **Delete layer** has Undo.

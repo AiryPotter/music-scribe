@@ -140,3 +140,14 @@ The take is transcribed in ~4 s slices during recording (1 s context either side
 | Note timing, 52 s take | −7.6 / −5.9 ms (start / end) | −7.0 / −5.3 ms |
 
 Bench (one seed, Detailed): 86% note score, 66% exact, tempo 8/8, meter 8/8 (the long pass is unchanged by this work).
+
+## Layers: speaker leak (2026-11-19)
+A real take ("Hopeful": 3 layers, other layers through PC speakers) showed the earlier layers written again into the new one. The filter only looked 0–0.12 s after each played note's expected arrival (from the browser's latency estimate), but the real speaker-to-mic delay was longer, so nothing matched and nothing was removed. Now the delay is measured from the take (the offset, −0.1…+0.6 s, where the most played notes line up with a written note of the same pitch, octave or twelfth), and notes at that offset are removed however long they ring, only if at least 20% (and 4+) of the played notes line up.
+
+Simulated take: a melody layer leaking 0.18 s late at full ring while a bass part is played:
+
+| | Old filter | New filter |
+|---|---|---|
+| Leaked notes removed | 0 of 27 | **31 of 31** |
+| Real notes kept | all | **24 of 24** |
+| With headphones (no leak) | nothing removed | nothing removed |
