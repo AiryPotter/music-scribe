@@ -842,7 +842,7 @@ function keepSelVisible(page) {
   if (!band) return;
   const z = Number(document.documentElement.style.zoom || 1) || 1;
   const b = band.getBoundingClientRect(), pg = page.getBoundingClientRect();
-  const trayTop = ui.ed.getBoundingClientRect().top;
+  const trayTop = docked() ? Infinity : ui.ed.getBoundingClientRect().top; // (docked on the right: nothing covers the page)
   const bottom = Math.min(pg.bottom, trayTop) - 12;
   if (b.top < pg.top) {
     page.scrollTop -= (pg.top - b.top + 12) / z;
@@ -1226,6 +1226,7 @@ function changeLayer(k, fn, { replay = false } = {}) {
   scheduleSave();
 }
 function syncLayerUi() {
+  renderMix();
   const bar = $('layerBar');
   const has = !!take?.score && !session;
   bar.hidden = !has;
@@ -1366,6 +1367,92 @@ async function analyzeLayer(od, rec, click, latency, live) {
   mozart.say('Bravo!');
   setTimeout(() => { if (!session && take === song) mozart.set('asleep'); }, 2500);
 }
+
+// ---------- wide screens: Guide on the left; layers mixer, note editor and Thy Library on the right ----------
+const wideMq = matchMedia('(min-width: 1440px)');
+function docked() { return wideMq.matches; }
+function openGuide() {
+  if (!docked()) { closeEditor(); if (!$('takesSheet').hidden) closeTakes(); } // one sheet at a time at the bottom
+  $('guide').classList.add('open');
+  $('guideBtn').setAttribute('aria-expanded', 'true');
+  $('guide').scrollTop = 0;
+}
+function closeGuide() { $('guide').classList.remove('open'); $('guideBtn').setAttribute('aria-expanded', 'false'); }
+$('guideBtn').addEventListener('click', () => ($('guide').classList.contains('open') ? closeGuide() : openGuide()));
+$('guideClose').addEventListener('click', closeGuide);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !docked() && $('guide').classList.contains('open')) closeGuide(); });
+function applyDock() {
+  const toast = $('toast');
+  if (docked()) {
+    $('sideRight').append(ui.ed, $('takesSheet'));
+    $('takesSheet').hidden = false;
+    renderTakes();
+  } else {
+    document.body.insertBefore(ui.ed, toast);
+    document.body.insertBefore($('takesSheet'), toast);
+    $('takesSheet').hidden = true;
+    document.body.classList.toggle('editing', !ui.ed.hidden);
+  }
+  closeGuide();
+}
+wideMq.addEventListener('change', applyDock);
+
+/** Layers & mix (right side): every layer's colour, name, mute and volume at once. */
+function renderMix() {
+  const box = $('mixList');
+  if (!take?.score || session) {
+    box.innerHTML = `<p class="mix-empty">${session ? 'Recording…' : 'Record or open a take to see its layers here.'}</p>`;
+    return;
+  }
+  const Ls = layersOf(take);
+  box.innerHTML = Ls.map((L, k) => `<div class="mix-row${k === take.active ? ' on' : ''}${L.mute ? ' muted' : ''}" style="--layer:${LAYER_HUES[L.hue]}">`
+    + `<i class="lc-dot" aria-hidden="true"></i>`
+    + `<button type="button" class="mix-name" data-mix-layer="${k}" title="${k === take.active ? 'The layer you are editing' : 'Edit this layer'}">${escHtml(L.name)}${k === take.active ? ' · editing' : ''}</button>`
+    + `<button type="button" class="mini" data-mix-mute="${k}" aria-pressed="${!!L.mute}" aria-label="${L.mute ? 'Unmute' : 'Mute'} ${escHtml(L.name)}">${L.mute ? '🔇' : '🔊'}</button>`
+    + `<input type="range" min="0" max="150" step="5" value="${Math.round((L.vol ?? 1) * 100)}" data-mix-vol="${k}" aria-label="${escHtml(L.name)} volume">`
+    + '</div>').join('')
+    + (Ls.length === 1 ? '<p class="mix-empty">Add a backup part with + Layer, or try + 3rd / + 6th for an instant harmony.</p>' : '');
+}
+$('mixList').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || !take?.score || session) return;
+  if (b.dataset.mixLayer !== undefined) useLayer(Number(b.dataset.mixLayer));
+  else if (b.dataset.mixMute !== undefined) changeLayer(Number(b.dataset.mixMute), (L) => { L.mute = !L.mute; }, { replay: true });
+});
+$('mixList').addEventListener('change', (e) => {
+  const r = e.target.closest('[data-mix-vol]');
+  if (r && take?.score) changeLayer(Number(r.dataset.mixVol), (L) => { L.vol = Number(r.value) / 100; }, { replay: true });
+});
+
+// ---------- first visit: a short walkthrough ----------
+const TOUR = [
+  [() => $('tuneBtn'), 'Welcome to Music Scribe! Start by tuning: tap <b>Tune</b> and play one string at a time.'],
+  [() => ui.record, 'Tap <b>Begin</b> and play. Tap <b>Cease</b> when you’re done: Mozart writes it out in a few seconds.'],
+  [() => document.querySelector('.score-card'), '<b>Thy Manuscript.</b> Tap any note to hear it and fix it. <b>▶</b> plays it back, <b>Export</b> makes a PDF, image, MusicXML or MIDI.'],
+  [() => document.querySelector('.score-card .head-actions'), 'Once you have a take, <b>+ Layer</b> adds a backup part while the first one plays, and <b>Takes</b> keeps everything you’ve written.'],
+  [() => (docked() ? $('guide') : $('guideBtn')), 'The <b>Guide</b> has room setup tips for clean recordings, shortcuts and more. Open it any time.'],
+];
+let tourAt = -1, coached = null;
+function showTour(i) {
+  coached?.classList.remove('coach');
+  coached = null;
+  if (i < 0 || i >= TOUR.length) { tourAt = -1; $('tour').hidden = true; store.set('toured', '1'); return; }
+  tourAt = i;
+  const [target, text] = TOUR[i];
+  const el = target();
+  if (el) { el.classList.add('coach'); coached = el; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  $('tourText').innerHTML = text;
+  $('tourStep').textContent = `${i + 1} of ${TOUR.length}`;
+  $('tourNext').textContent = i === TOUR.length - 1 ? 'Done' : 'Next';
+  $('tour').hidden = false;
+}
+$('tourNext').addEventListener('click', () => showTour(tourAt + 1));
+$('tourSkip').addEventListener('click', () => showTour(-1));
+$('tourAgain').addEventListener('click', () => { closeGuide(); showTour(0); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tourAt >= 0) showTour(-1); });
+applyDock();
+renderMix();
+if (!DEMO && store.get('toured', '0') !== '1') setTimeout(() => showTour(0), 900);
 
 // ---------- the note editor (tap a note or rest) ----------
 const lenName = (slots) => E.LENGTHS.find(([s]) => s === slots)?.[1] ?? `${slots / 4} beats`;
@@ -1939,6 +2026,7 @@ function flushSave() { if (saveTimer) persistTake(); }
 async function refreshTakeCount() {
   takeCount = (await listTakes()).length;
   ui.takes.textContent = takeCount ? `Takes (${takeCount})` : 'Takes';
+  if (docked()) renderTakes();
   const link = $('hintTakes');
   link.hidden = !takeCount;
   link.textContent = takeCount === 1 ? 'Or open your saved take' : `Or open one of your ${takeCount} saved takes`;
@@ -1962,6 +2050,7 @@ async function renderTakes() {
 let takesCache = [];
 function openTakes() {
   if (session) return;
+  if (docked()) { renderTakes().then(() => $('takesSheet').scrollIntoView({ block: 'nearest', behavior: 'smooth' })); return; }
   if (!$('fixesSheet').hidden) closeFixes();
   flushSave();
   closeEditor();
@@ -1973,6 +2062,7 @@ function openTakes() {
   });
 }
 function closeTakes() {
+  if (docked()) return; // on a wide screen Thy Library stays open on the right
   $('takesSheet').hidden = true;
   document.body.classList.remove('editing');
 }

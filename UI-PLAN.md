@@ -104,3 +104,8 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 
 ## Layers, phase 4: Harmony (2026-11-18)
 - **+ 3rd / + 6th** chips after + Layer: a new layer copying the active one 2 or 5 scale steps up in the key (chords too; notes above E6 drop an octave), at 80% volume, named "<layer> · 3rd up". Undo-able; off at 4 layers or when the layer is empty.
+
+## Guide + wide-screen sides (2026-11-19)
+- Guide (sections: Quick start, room setup, fixing the manuscript, layers & quartet, tuning & capo): pinned left at ≥1440 px; a bottom sheet from a header "Guide" button below that.
+- Right column at ≥1440 px: Layers & mix card, the note editor (moved into the column), Thy Library (always open). Side width clamp(280px, (100vw − 980px)/2 − 28px, 440px); the main column shrinks to fit between.
+- First-visit tour (5 steps, gold ring on each target), stored as seen; replay from the Guide. Skipped in ?demo.

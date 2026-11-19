@@ -114,6 +114,11 @@ Write a melody, then add up to **3 more guitar parts** (backup, harmony, bass li
 ## Shorter wait after Cease
 Mozart now writes the take out **while you play**: about once a second the newest audio goes (in memory only) to the background transcriber, which works through it in ~4-second slices, each with a second of overlap either side so the joins come out exactly like one long pass. After Cease only the last few seconds are left. A 30-second take is ready in about **3 seconds instead of ~14**, and the wait stays about that long however long you play. If anything goes wrong mid-way, it quietly falls back to one long pass. Still nothing is kept: the audio is dropped as soon as the notes are written.
 
+## The Guide, and the wide-screen layout
+- **The Guide** explains how to use Music Scribe: quick start, **setting up your room for recording** (quiet, soft furnishings, mic 30–60 cm from where the neck meets the body, keep the device still, check the level, wired headphones, play cleanly, Do Not Disturb), fixing the manuscript (with the keyboard keys), layers and quartet tips, and tuning and capo.
+- **First visit:** a five-step walkthrough points at Tune, Begin, the manuscript, the header buttons and the Guide. "Show me around again" in the Guide replays it.
+- **On a PC screen 1440 px or wider**, the sides are used: the **Guide** is pinned on the left; on the right are **Layers & mix** (every layer's name, mute and volume), the **note editor** (docked here instead of sliding up over the page), and **Thy Library**, always open. Narrower screens and phones keep the one-column layout, with a **Guide** button in the header.
+
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 

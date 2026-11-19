@@ -26,6 +26,7 @@
       <h1><span class="flourish" aria-hidden="true">❦</span> Music Scribe<span class="edition">iOS</span></h1>
       <p class="tagline">Thy playing, set down in ink</p>
     </div>
+    <button id="guideBtn" class="guide-btn" type="button" aria-controls="guide" aria-expanded="false" title="How to use Music Scribe, and how to set up your room">Guide</button>
     <div class="zoom" role="group" aria-label="Zoom">
       <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
       <button id="zoomReset" type="button" aria-label="Reset zoom">100%</button>
@@ -295,6 +296,101 @@
       <p id="scoreHint" class="hint small">While you play, a quick preview appears. Press Cease and Mozart writes the accurate version: real rhythm, tempo and chords. Then tap any note to hear it and fix it.</p>
     </section>
   </main>
+
+  <!-- Guide: pinned on the left of a wide screen; a sheet (the Guide button) everywhere else -->
+  <section id="guide" class="guide" aria-label="Guide">
+    <div class="guide-head">
+      <div class="ed-title">
+        <strong>The Guide</strong>
+        <span>How to use Music Scribe</span>
+      </div>
+      <button id="guideClose" class="mini" type="button" aria-label="Close the guide">✕</button>
+    </div>
+    <div class="guide-body">
+      <details open>
+        <summary>Quick start</summary>
+        <ol>
+          <li><b>Tune</b> first (under the Begin seal). Play one string at a time until each gets a ✓.</li>
+          <li>Tick <b>Metronome</b> if you want a steady tempo (a one-bar count-in, then a tick on every beat).</li>
+          <li>Tap <b>Begin</b> and play. A rough preview appears as you go.</li>
+          <li>Tap <b>Cease</b>. Mozart has been writing while you played, so the real page is ready in a few seconds.</li>
+          <li>Tap any note to hear it or fix it. <b>▶</b> plays it all back. <b>Export</b> makes a PDF, image, MusicXML, MIDI…</li>
+        </ol>
+        <button id="tourAgain" class="linkish" type="button">Show me around again</button>
+      </details>
+
+      <details>
+        <summary>Set up your room for recording</summary>
+        <ul>
+          <li><b>Quiet first.</b> Turn off fans, air conditioning, the TV and anything that hums. Close windows and doors.</li>
+          <li><b>Soft rooms sound best.</b> Rugs, curtains, a sofa or a bed soak up echo. Avoid bathrooms, kitchens and bare corners.</li>
+          <li><b>Mic placement.</b> Put the phone or laptop 30–60 cm (1–2 ft) away, pointing at where the neck meets the body (around the 12th–14th fret). Right at the soundhole sounds boomy.</li>
+          <li><b>Keep it still.</b> Rest the device on a table or stand, not in your hand or on your lap, and don't touch it while you play. Use the same spot every time.</li>
+          <li><b>Check the level.</b> Watch the meter by Sensitivity: a firm strum should reach the middle, not the very end. Move closer or adjust Sensitivity if it doesn't.</li>
+          <li><b>Headphones for the click and layers.</b> Wired ones are best: Bluetooth adds a delay. If you use speakers, keep them low and pointed away from the mic.</li>
+          <li><b>Play cleanly.</b> Let notes ring, mute strings you're not playing, and lift fingers gently (Mozart filters finger-lift noise, but less is better). Fresh strings help.</li>
+          <li><b>On a phone</b>, turn on Do Not Disturb (alerts get written down as notes too) and plug in for long sessions.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary>Fixing and shaping the manuscript</summary>
+        <ul>
+          <li><b>Tap a note</b> to hear it and open the editor. Every change plays the new note.</li>
+          <li><b>▲ ▼</b>, <kbd>W</kbd> <kbd>S</kbd>, <kbd>+</kbd> <kbd>−</kbd> or <kbd>↑</kbd> <kbd>↓</kbd>: a step up or down in the key. <b>♭ ♯</b> or <kbd>Shift</kbd>: one fret. <b>±8ve</b>: an octave.</li>
+          <li><kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd>: previous / next note. <kbd>Delete</kbd>: remove it (the rest slides up). <kbd>Space</kbd>: play / pause. <kbd>Ctrl</kbd>+<kbd>Z</kbd>: undo.</li>
+          <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together.</li>
+          <li><b>Detail</b>: <i>Simple</i> for a clean, readable page; <i>Detailed</i> keeps every rest and 16th note.</li>
+          <li><b>Practice</b>: slow it down, loop a few bars, add a metronome to the playback.</li>
+          <li><b>Fixes</b> counts what you corrected. Save that log and share it to help Mozart improve.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary>Layers: building a quartet</summary>
+        <ul>
+          <li>Record your <b>melody first</b>, ideally with the metronome on, so the tempo is steady. Tempo and time are shared by every layer, and locked once there are two.</li>
+          <li><b>+ Layer</b> adds a part. Tap <b>Begin</b>: one bar of count-in, then the other layers play while you play your backup part. Wear headphones.</li>
+          <li>The layer you're editing is <b>bold black</b>; the others are faint: sky blue, violet, arterial red, evergreen. <b>All</b> shows every layer bold; tap one to make it thin.</li>
+          <li><b>🔊/🔇</b> mutes a layer; <b>Volume</b> balances them. Each layer sits a little left or right so you can tell them apart.</li>
+          <li><b>+ 3rd / + 6th</b> copies the layer you're on a 3rd or a 6th higher, in the key: an instant harmony to try against the melody.</li>
+          <li>Ideas: a <b>bass line</b> on the low strings (root notes on beat 1), <b>chords</b> strummed on the beat, or a simple <b>counter-melody</b> in the gaps.</li>
+          <li><b>Export → MusicXML</b> (All layers) opens in MuseScore or Sibelius as a real multi-part score; <b>MIDI</b> gives a track per layer.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary>Tuning and capo</summary>
+        <ul>
+          <li><b>Tune before every session</b>, and again if you change strings or the room warms up. Out-of-tune strings get written as the wrong notes.</li>
+          <li>Tap a string in the tuner to tune just that one (handy in a noisy room).</li>
+          <li>Playing in <b>Drop D</b>, half-step down or another tuning? Choose it under <b>Tuning</b> <i>before</i> you record, so the tab shows the right frets. <i>Custom</i> sets each string.</li>
+          <li><b>Capo</b>: set the fret and the tab is counted from the capo (open C shape with capo 2 reads 0-1-0-2-3), while the notation shows the real sounding notes. Tune with the capo <b>off</b>.</li>
+        </ul>
+      </details>
+
+      <p class="guide-privacy">Your playing is never saved or sent anywhere. Only the written notes are kept, on this device.</p>
+    </div>
+  </section>
+
+  <!-- Wide screens: layers mixer, the note editor and Thy Library sit on the right -->
+  <aside id="sideRight" class="side-right" aria-label="Layers, note editor and library">
+    <section id="mixCard" class="side-card">
+      <h3>Layers &amp; mix</h3>
+      <div id="mixList"></div>
+    </section>
+    <div id="edPlaceholder" class="side-card ed-placeholder">Tap a note on the manuscript to edit it here.</div>
+  </aside>
+
+  <!-- First visit: a short walkthrough -->
+  <div id="tour" class="tour" role="dialog" aria-label="Quick tour" hidden>
+    <p id="tourText"></p>
+    <div class="tour-actions">
+      <button id="tourSkip" class="ed-btn" type="button">Skip</button>
+      <span id="tourStep"></span>
+      <button id="tourNext" class="ed-btn primary" type="button">Next</button>
+    </div>
+  </div>
 
   <!-- Editor tray: slides up when a note or rest is tapped -->
   <section id="editor" class="editor" hidden aria-label="Edit note">
