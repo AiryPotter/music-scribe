@@ -417,6 +417,14 @@ export function intentionScores(notes, openStrings = []) {
     const short = clamp01((0.3 - (n.end - n.start)) / 0.25);
     const weakness = clamp01(quiet * 0.5 + soft * 0.3 + short * 0.2);
 
+    // an overtone of the note just played, clearly quieter AND softly started: the string ringing on,
+    // whatever the rhythm says (low E ringing, heard again an octave up)
+    // only in a plain single-note line, exactly an octave up, and not a step on from the note before that
+    const lone = (h) => !h || h.notes.length === 1;
+    const before2 = groups[pk - 1];
+    if (echo && quiet >= 0.6 && soft >= 0.8 && g.length === 1 && lone(pg) && lone(ng) && lone(before2) && lone(groups[nk + 1])
+      && n.midi - pg.notes[0].midi === 12 && !(before2 && Math.abs(n.midi - before2.notes[0].midi) <= 4)) misfit = Math.max(misfit, 0.8);
+
     const doubt = misfit * (0.35 + 0.65 * support) * (0.6 + 0.4 * weakness) / 0.6; // 0 ... 1.67
     return { intent: clamp01(1 - doubt * 0.6), misfit, support, weakness,
       why: { spike, smoothLine, squeezed, late, intrusion, sympathy, trailing, pedal, openLift, echo, release, quiet, soft, short, sizes: [pk > 0 ? groups[pk - 1].notes.length : 0, pg?.notes.length ?? 0, g.length, ng?.notes.length ?? 0] } };

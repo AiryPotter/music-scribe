@@ -151,3 +151,6 @@ Simulated take: a melody layer leaking 0.18 s late at full ring while a bass par
 | Leaked notes removed | 0 of 27 | **31 of 31** |
 | Real notes kept | all | **24 of 24** |
 | With headphones (no leak) | nothing removed | nothing removed |
+
+## Open-string test (2026-11-23)
+A real take of open strings wrote an impossible E3 (the octave of the ringing low E). New rule: in a plain single-note line, a note exactly an octave above the one before, clearly quieter and softly started, is an echo wherever it falls in the rhythm. A first, broader version cost 4 real bench notes and was narrowed; the final one costs 0 and leaves every guard unchanged. The same take's third pass lacked D and high e: not reproduced (simulated runs kept 18/18, even with those strings very quiet), so nothing was changed for it.
