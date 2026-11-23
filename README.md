@@ -119,6 +119,9 @@ Mozart now writes the take out **while you play**: about once a second the newes
 - **First visit:** a five-step walkthrough points at Tune, Begin, the manuscript, the header buttons and the Guide. "Show me around again" in the Guide replays it.
 - **On a PC screen 1440 px or wider**, the sides are used: the **Guide** is pinned on the left; on the right are **Layers & mix** (every layer's name, mute and volume), the **note editor** (docked here instead of sliding up over the page), and **Thy Library**, always open. Narrower screens and phones keep the one-column layout, with a **Guide** button in the header.
 
+## Report a bug
+Tap **🐞 Bug** (top of the page, or "Report a bug" in the Guide). Write what went wrong and what you were doing, add screenshots (from Photos/files, pasted with Ctrl+V, or on a PC **Capture the screen**), and choose whether to include a picture of the manuscript and the app/device details (app version, browser, screen size, the take, layers, settings and any recent errors). **Save PDF** writes everything into one file, *Music Scribe bug report <date time>.pdf*; **Share…** sends it from a phone. Nothing leaves your device unless you share it, and what you've typed is kept as a draft until you tap **New report**.
+
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 

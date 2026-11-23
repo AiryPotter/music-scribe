@@ -26,6 +26,7 @@
       <h1><span class="flourish" aria-hidden="true">❦</span> Music Scribe<span class="edition">iOS</span></h1>
       <p class="tagline">Thy playing, set down in ink</p>
     </div>
+    <button id="bugBtn" class="guide-btn bug-btn" type="button" title="Report a bug: a description and screenshots, saved as a PDF" aria-label="Report a bug">🐞<span class="bug-label"> Bug</span></button>
     <button id="guideBtn" class="guide-btn" type="button" aria-controls="guide" aria-expanded="false" title="How to use Music Scribe, and how to set up your room">Guide</button>
     <div class="zoom" role="group" aria-label="Zoom">
       <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
@@ -317,6 +318,7 @@
           <li>Tap any note to hear it or fix it. <b>▶</b> plays it all back. <b>Export</b> makes a PDF, image, MusicXML, MIDI…</li>
         </ol>
         <button id="tourAgain" class="linkish" type="button">Show me around again</button>
+        <button id="guideBug" class="linkish" type="button">Report a bug</button>
       </details>
 
       <details>
@@ -513,6 +515,39 @@
         <div id="tnAdvice" class="tn-advice">&nbsp;</div>
       </div>
       <p id="tnHint" class="hint small"></p>
+    </div>
+  </section>
+
+  <!-- Report a bug: everything goes into one PDF on this device; nothing is sent anywhere -->
+  <section id="bugSheet" class="editor sheet" hidden aria-label="Report a bug">
+    <div class="ed-head">
+      <div class="ed-title">
+        <strong>Report a bug</strong>
+        <span>Saved as one PDF on this device · nothing is sent until you share it</span>
+      </div>
+      <button id="bugClose" class="mini" type="button" aria-label="Close bug report">✕</button>
+    </div>
+    <div class="ed-body bug-body">
+      <label class="bug-field"><span>What went wrong?</span>
+        <textarea id="bugWhat" rows="3" maxlength="4000" placeholder="e.g. After I recorded Layer 2, the bass notes from Layer 1 showed up again in red."></textarea></label>
+      <label class="bug-field"><span>What were you doing just before? <i>(optional)</i></span>
+        <textarea id="bugSteps" rows="2" maxlength="4000" placeholder="e.g. Metronome on, PC speakers, tapped Begin on Layer 3"></textarea></label>
+      <div class="bug-shots-row">
+        <button id="bugAdd" class="ed-btn" type="button">+ Add screenshots</button>
+        <button id="bugCapture" class="ed-btn" type="button" title="Pick a screen, window or tab to take one picture of" hidden>Capture the screen</button>
+        <input id="bugFile" type="file" accept="image/*" multiple hidden>
+      </div>
+      <p class="hint small bug-tip">On a phone, take screenshots first (they're in Photos). On a PC you can also paste one (Ctrl+V).</p>
+      <ul id="bugShots" class="bug-shots"></ul>
+      <label class="bug-check"><input id="bugPage" type="checkbox" checked> Include the manuscript as it looks now</label>
+      <label class="bug-check"><input id="bugInfo" type="checkbox" checked> Include app and device details</label>
+      <pre id="bugInfoText" class="bug-info"></pre>
+      <div class="ed-row ex-actions">
+        <button id="bugSave" class="ed-btn primary" type="button">Save PDF</button>
+        <button id="bugShare" class="ed-btn" type="button" hidden>Share…</button>
+        <button id="bugClear" class="ed-btn" type="button" title="Start a fresh report">New report</button>
+      </div>
+      <p id="bugStatus" class="hint small ex-status" role="status"></p>
     </div>
   </section>
 

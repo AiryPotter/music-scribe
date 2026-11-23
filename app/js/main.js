@@ -17,6 +17,12 @@ import { Tuner } from './tuner.js';
 import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
 import { removeClickNotes, removePlaybackNotes } from './notes-post.js';
 import * as FX from './fixlog.js';
+import { createBugReporter } from './bugreport.js';
+
+// the last few errors, for bug reports (they stay on this device unless a report is shared)
+const recentErrors = [];
+window.addEventListener('error', (e) => { recentErrors.push(`${new Date().toLocaleTimeString()} ${e.message || 'error'}${e.filename ? ` (${String(e.filename).split('/').pop()}:${e.lineno})` : ''}`); recentErrors.splice(0, recentErrors.length - 8); });
+window.addEventListener('unhandledrejection', (e) => { recentErrors.push(`${new Date().toLocaleTimeString()} ${e.reason?.message || String(e.reason)}`); recentErrors.splice(0, recentErrors.length - 8); });
 import { createExportSheet } from './exportui.js';
 import { PROJECT_FORMAT, validateProject, localStamp } from './exporters.js';
 
@@ -1423,6 +1429,36 @@ $('mixList').addEventListener('change', (e) => {
   const r = e.target.closest('[data-mix-vol]');
   if (r && take?.score) changeLayer(Number(r.dataset.mixVol), (L) => { L.vol = Number(r.value) / 100; }, { replay: true });
 });
+
+// ---------- Report a bug (one PDF: description, screenshots, manuscript, app/device details) ----------
+let appVersion = '';
+fetch('sw.js').then((r) => r.text()).then((t) => { appVersion = (t.match(/music-scribe-[\w-]+/) || [''])[0]; }).catch(() => {});
+const bugs = createBugReporter({
+  hasTake: () => !!take?.model && !session,
+  details: () => {
+    const t = take?.score ? take : null;
+    const L = t?.layers;
+    return [
+      ['App', `${document.documentElement.dataset.edition === 'ios' ? 'Music Scribe iOS' : 'Music Scribe'} ${appVersion}`],
+      ['When', new Date().toString().replace(/ \(.*\)$/, '')],
+      ['Browser', navigator.userAgent],
+      ['Screen', `${screen.width}×${screen.height}, window ${innerWidth}×${innerHeight}, zoom ${Math.round((Number(document.documentElement.style.zoom) || 1) * 100)}%${matchMedia('(display-mode: standalone)').matches || navigator.standalone ? ', home-screen app' : ''}`],
+      ['Take', t ? `${t.title || 'Untitled'} · ${t.source || ''} · ${Math.round(t.score.tempo.bpm)} bpm · ${t.score.tempo.meter}/4 · ${keyName(t.score.key)} · ${t.model?.measures.length ?? 0} bars` : 'none open'],
+      ['Layers', L?.length ? L.map((x, k) => `${x.name}${k === t.active ? '*' : ''} (${x.events.length} notes${x.mute ? ', muted' : ''})`).join(', ') : '1'],
+      ['Settings', `Detail ${ui.detailSel.value}, Metronome ${ui.click.checked ? 'on' : 'off'}, tuning ${guitar.id}, capo ${guitar.capo}, mic ${ui.mic.value === '__demo__' ? 'demo' : 'device'}`],
+      ['Recent errors', recentErrors.length ? recentErrors.join(' | ') : 'none'],
+    ];
+  },
+  manuscript: async () => {
+    try {
+      const { toImage } = await import('./pages.js');
+      return await toImage(buildSong('all'), exportModel('all'), { layout: 'both', size: 'page', look: 'white' });
+    } catch { return null; }
+  },
+  onOpen: () => { closeEditor(); closeGuide(); if (exportSheet.isOpen) exportSheet.close(); if (!docked() && !$('takesSheet').hidden) closeTakes(); },
+});
+$('bugBtn').addEventListener('click', () => (bugs.isOpen ? bugs.close() : bugs.open()));
+$('guideBug').addEventListener('click', () => bugs.open());
 
 // ---------- first visit: a short walkthrough ----------
 const TOUR = [

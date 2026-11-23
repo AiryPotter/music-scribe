@@ -169,6 +169,13 @@ function writePdf(pages, meta) {
   return new Blob(parts, { type: 'application/pdf' });
 }
 
+/** Canvases (one per page) → a PDF Blob. meta: { wPt, hPt, title } (used by the bug report). */
+export async function pagesToPdf(canvases, meta) {
+  const pages = [];
+  for (const c of canvases) pages.push({ img: await canvasToPdfImage(c), wPt: meta.wPt, hPt: meta.hPt });
+  return writePdf(pages, { title: meta.title });
+}
+
 /**
  * Printable PDF. opts: { paper: 'a4'|'letter', look: 'white'|'parchment', layout: 'both'|'notation'|'tab' }
  * onProgress(0..1) is called per page.

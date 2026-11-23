@@ -1180,3 +1180,31 @@ button.layer-chip:disabled { opacity: .45; cursor: default; }
 .tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 #tourStep { font-size: 13px; color: var(--text-soft); }
 .coach { position: relative; z-index: 60; outline: 3px solid var(--gold); outline-offset: 4px; border-radius: 12px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45); }
+
+/* ---------- Report a bug ---------- */
+.bug-btn { margin-left: auto; }
+.bug-btn + .guide-btn { margin-left: 0; }
+@media (min-width: 1440px) { .bug-btn { display: inline-block; } }
+.bug-body { display: grid; gap: 8px; }
+.bug-field { display: grid; gap: 4px; font-size: 15px; font-weight: 700; }
+.bug-field i { font-weight: 500; color: var(--text-soft); }
+.bug-field textarea {
+  font: inherit; font-size: 16px; font-weight: 500; resize: vertical; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--card-edge); background: color-mix(in srgb, var(--card) 70%, white 30%); color: var(--text);
+}
+.bug-shots-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.bug-tip { margin: 0; }
+.bug-shots { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.bug-shots:empty { display: none; }
+.bug-shots li { position: relative; }
+.bug-shots img { display: block; width: 96px; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--card-edge); }
+.bug-shots .mini { position: absolute; top: 3px; right: 3px; min-width: 26px; height: 26px; padding: 0; background: rgba(0, 0, 0, .6); color: #fff; border: 0; }
+.bug-check { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.bug-info { margin: 0; max-height: 140px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-word; padding: 6px 8px; border-radius: 6px; background: color-mix(in srgb, var(--card) 80%, black 6%); color: var(--text-soft); }
+.bug-info[hidden] { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bug-field textarea { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+}
+:root[data-theme="dark"] .bug-field textarea { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+@media (max-width: 520px) { .bug-label { display: none; } .bug-btn { padding: 0 10px; } }
+@media (max-width: 520px) { .masthead { flex-wrap: wrap; row-gap: 6px; } .masthead .title-block { flex: 1 1 100%; } .masthead .bug-btn { margin-left: 0; } }
