@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Music Scribe</title>
+  <script>
+    // A mistyped link inside the app (wrong capitals, a missing slash, an old page): go to the app.
+    (function () {
+      var p = location.pathname.toLowerCase();
+      var base = '/music-scribe/';
+      var i = p.indexOf(base);
+      var root = i >= 0 ? location.pathname.slice(0, i + base.length) : base;
+      location.replace(root + (p.indexOf('/ios') >= 0 ? 'ios/' : ''));
+    })();
+  </script>
+  <style>body{font-family:Georgia,serif;background:#efe0b9;color:#2b1d14;text-align:center;padding:40px 16px}a{color:#7a1f2b}</style>
+</head>
+<body>
+  <p>Taking you to Music Scribe…</p>
+  <p><a href="/music-scribe/">Open Music Scribe</a> · <a href="/music-scribe/ios/">iPhone edition</a></p>
+</body>
+</html>

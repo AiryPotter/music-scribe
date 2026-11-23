@@ -1,5 +1,5 @@
 // Music Scribe service worker: keeps the app working offline once loaded.
-const CACHE = 'music-scribe-m4-v26';
+const CACHE = 'music-scribe-m4-v27';
 const SHELL = [
   './vendor/vexflow.js',
   './ios/',
@@ -57,18 +57,22 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Network first (so updates show up), falling back to cache when offline.
+// Network first (so updates show up), falling back to the saved copy when offline, or when the
+// website answers with an error (e.g. a 404 while the site is briefly unpublished): the app on
+// the phone keeps working instead of showing the host's error page.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
     fetch(e.request)
-      .then((res) => {
+      .then(async (res) => {
         if (res.ok && (res.type === 'basic' || res.type === 'cors')) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(e.request, copy));
+          return res;
         }
+        if (res.status >= 400) return (await caches.match(e.request, { ignoreSearch: e.request.mode === 'navigate' })) || res;
         return res;
       })
-      .catch(() => caches.match(e.request))
+      .catch(async () => (await caches.match(e.request, { ignoreSearch: e.request.mode === 'navigate' })) || Response.error())
   );
 });
