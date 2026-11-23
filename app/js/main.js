@@ -2241,7 +2241,22 @@ function renderTunerStrings(active = null) {
       <strong>${stringName(i, strings).replace('low ', '').replace('high ', '')}</strong><small>${noteNameFlat(m)}</small>${tuner.tuned.has(i) ? '<i aria-label="in tune">✓</i>' : ''}</button>`;
   }).join('');
 }
-function showTuning(r) {
+/** Say what the tuner is listening to, and why nothing is showing (nothing heard / sound but no clear note). */
+function tunerStatus(r, level = 0) {
+  const now = performance.now();
+  if (r) tuner.lastNote = now;
+  if (level >= 0.004) tuner.lastSound = now;
+  if (now - (tuner.statusAt || 0) < 300) return;
+  tuner.statusAt = now;
+  const demo = tuner.demo;
+  let text = demo ? 'Demo mode: this is a pretend guitar, not your microphone.' : `Listening to ${tuner.session?.label || 'the microphone'}`;
+  if (!demo && tuner.session?.ctx.state !== 'running') text = 'The audio is paused. Tap anywhere to start listening.';
+  else if (!demo && now - tuner.lastSound > 4000) text = `Nothing heard from ${tuner.session?.label || 'the microphone'}. Check it isn’t muted, or pick another one in the microphone list at the top.`;
+  else if (!demo && now - tuner.lastNote > 4000) text = 'Hearing sound, but no clear note. Pluck one string and let it ring.';
+  if ($('tnStatus').textContent !== text) $('tnStatus').textContent = text;
+}
+function showTuning(r, level) {
+  tunerStatus(r, level);
   const needle = $('tnNeedle');
   if (!r) { needle.classList.add('off'); $('tnAdvice').classList.remove('ok'); tuner.heldSince = 0; return; }
   const strings = tunerStrings();
@@ -2283,13 +2298,20 @@ async function openTuner() {
   $('tnTarget').textContent = 'Play a string';
   $('tnAdvice').textContent = ' ';
   $('tnHint').textContent = guitar.capo ? `Tune with the capo off. Your tuning: ${tuningLabel()}.` : `Your tuning: ${tuningLabel()}. Tap a string to tune only that one.`;
+  tuner.demo = ui.mic.value === '__demo__';
+  tuner.lastSound = tuner.lastNote = performance.now();
+  tuner.statusAt = 0;
+  $('tnStatus').textContent = tuner.demo ? 'Demo mode: this is a pretend guitar, not your microphone.' : 'Opening the microphone…';
+  $('tnUseMic').hidden = !tuner.demo;
   $('tunerSheet').hidden = false;
   document.body.classList.add('editing');
   renderTunerStrings();
   requestAnimationFrame(() => document.body.style.setProperty('--tray-h', `${$('tunerSheet').offsetHeight}px`));
   try {
-    tuner.session = ui.mic.value === '__demo__' ? openTuneDemo() : await openMic(store.get('mic', ''));
+    const id = store.get('mic', '');
+    tuner.session = tuner.demo ? openTuneDemo() : await openMic(id === '__demo__' ? '' : id);
   } catch (err) {
+    $('tnStatus').textContent = '';
     const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
     $('tnTarget').textContent = denied ? 'Microphone permission was blocked. Allow it in the browser’s site settings.' : (err?.message || 'Could not open the microphone.');
     return;
@@ -2327,6 +2349,12 @@ function openTuneDemo() {
   return { ctx, analyser, close() { ctx.close().catch(() => {}); } };
 }
 $('tuneBtn').addEventListener('click', openTuner);
+$('tnUseMic').addEventListener('click', () => { // out of the demo: listen to the real microphone
+  closeTuner();
+  ui.mic.value = '';
+  ui.mic.dispatchEvent(new Event('change'));
+  openTuner();
+});
 $('tnClose').addEventListener('click', closeTuner);
 $('tnStrings').addEventListener('click', (e) => {
   const b = e.target.closest('[data-i]');
@@ -2340,7 +2368,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('tune
 
 // ---------- iPhone ----------
 // Safari may hold audio until the next touch (or pause it after a call); any tap wakes it.
-document.addEventListener('pointerdown', () => { wake(session?.ctx); wake(earCtx); }, { passive: true, capture: true });
+document.addEventListener('pointerdown', () => { wake(session?.ctx); wake(tuner.session?.ctx); wake(earCtx); }, { passive: true, capture: true });
 
 const IOS_EDITION = document.documentElement.dataset.edition === 'ios';
 function showInstallBanner() {

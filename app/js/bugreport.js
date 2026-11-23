@@ -141,7 +141,8 @@ export function createBugReporter(ctx) {
       for (const [k, v] of ctx.details()) line(`${k}: ${v}`, '21px Consolas, monospace', '#2b1d14', 5);
       y += 12;
     }
-    line(`${shots.length} screenshot${shots.length === 1 ? '' : 's'}${el.page.checked && ctx.hasTake() ? ' · the manuscript as it looked' : ''} on the following page${shots.length + (el.page.checked ? 1 : 0) === 1 ? '' : 's'}.`, 'italic 22px Georgia, serif', '#6a4f35');
+    const attached = [shots.length ? `${shots.length} screenshot${shots.length === 1 ? '' : 's'}` : '', el.page.checked && ctx.hasTake() ? 'the manuscript as it looked' : ''].filter(Boolean);
+    line(attached.length ? `Following: ${attached.join(' · ')}.` : 'No screenshots attached.', 'italic 22px Georgia, serif', '#6a4f35');
 
     // one page per picture, as big as fits, with a caption
     const pictures = shots.map((s, i) => ({ blob: s.blob, caption: `Screenshot ${i + 1} of ${shots.length}${s.name && !/^image\./.test(s.name) ? ` · ${s.name}` : ''}` }));
