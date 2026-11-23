@@ -126,7 +126,7 @@ Tap **🐞 Bug** (top of the page, or "Report a bug" in the Guide). Write what w
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 
 ## Tuner
-Tap **Tune** (under the Begin seal) before you play. Play one string at a time: the tuner finds the nearest string in your current tuning, shows the note, a needle from −50 to +50 cents, and says "Too low · tighten ↑", "Too high · loosen ↓" or "In tune ✓" (within ±5 cents). Each string gets a ✓ once it has stayed in tune for half a second. Tap a string to tune only that one (handy in a noisy room). With a capo set, it reminds you to tune with the capo off. It only listens: nothing is recorded or kept.
+Tap **Tune** (under the Begin seal) before you play. Play one string at a time: the tuner finds the nearest string in your current tuning, shows the note, a needle from −50 to +50 cents, and says "Too low · tighten ↑", "Too high · loosen ↓" or "In tune ✓" (within ±5 cents). Each string gets a ✓ once it has stayed in tune for half a second. Tap a string to tune only that one (handy in a noisy room). With a capo set, it reminds you to tune with the capo off. It shows a note only once several readings agree, clears it when the sound stops, corrects octave mistakes, and asks which string you mean instead of advising a big turn. It only listens: nothing is recorded or kept.
 
 ## Recording with the click
 If the metronome plays through speakers, the mic hears it too. Music Scribe now knows exactly when every beat was, so:

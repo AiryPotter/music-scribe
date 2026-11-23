@@ -2251,14 +2251,28 @@ function tunerStatus(r, level = 0) {
   const demo = tuner.demo;
   let text = demo ? 'Demo mode: this is a pretend guitar, not your microphone.' : `Listening to ${tuner.session?.label || 'the microphone'}`;
   if (!demo && tuner.session?.ctx.state !== 'running') text = 'The audio is paused. Tap anywhere to start listening.';
-  else if (!demo && now - tuner.lastSound > 4000) text = `Nothing heard from ${tuner.session?.label || 'the microphone'}. Check it isn’t muted, or pick another one in the microphone list at the top.`;
+  else if (!demo && now - tuner.lastSound > 4000) text = `Waiting for a string. Nothing heard from ${tuner.session?.label || 'the microphone'}. Check it isn’t muted, or pick another one in the microphone list at the top.`;
   else if (!demo && now - tuner.lastNote > 4000) text = 'Hearing sound, but no clear note. Pluck one string and let it ring.';
   if ($('tnStatus').textContent !== text) $('tnStatus').textContent = text;
 }
 function showTuning(r, level) {
   tunerStatus(r, level);
   const needle = $('tnNeedle');
-  if (!r) { needle.classList.add('off'); $('tnAdvice').classList.remove('ok'); tuner.heldSince = 0; return; }
+  if (!r) {
+    needle.classList.add('off');
+    tuner.heldSince = 0;
+    // an old reading must not stay up as if it were still being heard
+    if (tuner.shownAt && performance.now() - tuner.shownAt > 1200) {
+      tuner.shownAt = 0;
+      $('tnNote').textContent = '—';
+      $('tnTarget').textContent = 'Play a string';
+      $('tnAdvice').textContent = '\u00a0';
+      $('tnAdvice').classList.remove('ok');
+      $('tnStrings').querySelectorAll('.tn-string.active').forEach((b) => b.classList.remove('active'));
+    }
+    return;
+  }
+  tuner.shownAt = performance.now();
   const strings = tunerStrings();
   needle.classList.remove('off');
   const c = Math.max(-50, Math.min(50, r.cents));
@@ -2272,6 +2286,7 @@ function showTuning(r, level) {
   adv.classList.toggle('ok', r.inTune);
   if (r.string === null) adv.textContent = `${r.cents > 0 ? '+' : ''}${r.cents} cents`;
   else if (r.inTune) adv.textContent = 'In tune ✓';
+  else if (Math.abs(r.cents) > 100 && tuner.t?.lock === null) adv.textContent = 'Is this the right string? Tap the string you’re tuning.'; // never advise a big turn on a guess
   else if (r.cents < 0) adv.textContent = `${Math.abs(r.cents) > 50 ? 'Much too low' : 'Too low'} · tighten ↑ (${r.cents} cents)`;
   else adv.textContent = `${r.cents > 50 ? 'Much too high' : 'Too high'} · loosen ↓ (+${r.cents} cents)`;
   // a string counts as tuned once it has stayed in tune for half a second
@@ -2317,6 +2332,8 @@ async function openTuner() {
     return;
   }
   if ($('tunerSheet').hidden) { tuner.session.close(); tuner.session = null; return; } // closed while asking for the mic
+  tuner.lastSound = tuner.lastNote = performance.now(); // (not counting the time spent on the permission prompt)
+  tuner.shownAt = 0;
   tuner.t = new Tuner({ strings: tunerStrings(), onReading: showTuning });
   tuner.t.start(tuner.session);
   mozart.set('listening');

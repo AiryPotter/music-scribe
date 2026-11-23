@@ -58,6 +58,7 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; } /* hidden always means hidden */
 html, body { margin: 0; }
 
 body {
