@@ -131,7 +131,7 @@ export function summary() {
     else if (f.kind === 'pitch') det = f.by % 12 === 0 ? `off by ${Math.abs(f.by / 12)} octave${Math.abs(f.by) > 12 ? 's' : ''}` : `off by ${Math.abs(f.by)} semitone${Math.abs(f.by) === 1 ? '' : 's'}`;
     else if (f.kind === 'length') det = f.to > f.from ? 'should be longer' : 'should be shorter';
     else if (f.kind === 'tempo') det = f.ratio === 0.5 ? 'was double (halved)' : f.ratio === 2 ? 'was half (doubled)' : 'nudged';
-    else if (f.kind === 'meter') det = `${f.from}/4 → ${f.to}/4`;
+    else if (f.kind === 'meter') { const name = (x) => (typeof x === 'string' ? x : `${x}/4`); det = `${name(f.from)} → ${name(f.to)}`; }
     if (det) g.details[det] = (g.details[det] || 0) + 1;
   }
   const rows = Object.entries(groups)

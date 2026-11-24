@@ -18,7 +18,7 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 ## Status: Milestone 2 ✅
 - Records the whole take; press **Cease** and Mozart writes the **accurate version** with Spotify's Basic Pitch, on-device
 - **Tempo**: worked out automatically from free playing (fine-tune with − / + / ½× / 2×), or turn on the **Metronome** for a one-bar count-in and a tick on every beat
-- **Time signature**: Auto (4/4 or 3/4), or pick 4/4, 3/4 or 2/4
+- **Time signature**: 2/4, 3/4, **4/4** (default), 5/4, 6/8, 7/8, 9/8 or 12/8. The metronome ticks quarters in x/4, dotted quarters in 6/8, 9/8 and 12/8, eighths in 7/8; ♩ is always the quarter note. Changing it on an edited song moves the bar lines and keeps your notes. For x/8, record with the metronome on: without it the tempo is guessed as quarter-note beats
 - Real rhythm: 16th-note grid, dotted notes, ties across bars, beamed eighths, rests
 - **Chords**: stacked in the notation, named above the staff (C, Am7, G/B…), and laid out as real chord shapes in the tab
 - Falls back to the live notes if the model can't load (e.g. offline on first use)
@@ -146,10 +146,10 @@ Mozart works out the **key** from your notes (major or minor, e.g. "A minor", "B
 
 ## Practice playback
 A **Practice** row appears under the manuscript header when there's music (on phones it folds into one "Practice" button):
-- **Speed** slider, 40–100% (in 5% steps), for learning something slowly
+- **Speed** slider, 25–400% in 25% steps (200% = double time); always starts at 100%
 - **Loop**: tap a note, turn Loop on, and its bar repeats; choose **1, 2 or 4 bars**
 - **Metronome**: a tick on every beat while playing back, accented on beat 1
-Changing any of these while music plays carries on from the same note. Speed, Metronome and the bar count are remembered.
+Changing any of these while music plays carries on from the same note. Metronome and the bar count are remembered.
 
 ## Mozart's mistakes (fix log)
 The **Fixes** button (manuscript header) shows what you've corrected: wrong extra notes, missed notes, wrong pitch (with how far off), wrong length, notes written as two or joined, wrong tempo (halved/doubled) or time signature, string choice and chord names. Every fix in the note editor is counted automatically; Undo takes it back out; ▲▲ on one note counts as one fix. **Save log** makes a small .json file (counts and note numbers only: no audio, no song titles) you can share for re-tuning; **Clear log** has an Undo. Kept in this browser on this device.

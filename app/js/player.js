@@ -22,10 +22,10 @@ export class Player {
    * layers: [{ events: [{ slot, len, notes:[{ midi }] }] sorted, active (the one the page follows),
    *   volume (0–1.5), pan (−1…1) }]  (a plain events array also works, as one layer)
    * bpm: the written tempo; fromSlot: where to start (16ths from the start of the song).
-   * opts: { speed (0.4–1), click (bool), meter, loop: { start, end } in slots, or null,
+   * opts: { speed (0.25–4), click (bool), meter, pulse (slots between ticks), loop: { start, end } in slots, or null,
    *   at: audio time to start (default: right away) }
    */
-  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, loop = null, at = null, fullLoop = false } = {}) {
+  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, pulse = SLOTS_PER_BEAT, loop = null, at = null, fullLoop = false } = {}) {
     this.stop(false);
     if (Array.isArray(layers) && layers.length && !layers[0]?.events) layers = [{ events: layers, active: true }];
     layers = (layers || []).filter((L) => L.events?.length);
@@ -54,8 +54,8 @@ export class Player {
       });
     });
     if (click) {
-      for (let s = Math.ceil(seg.start / SLOTS_PER_BEAT) * SLOTS_PER_BEAT; s < seg.end; s += SLOTS_PER_BEAT) {
-        items.push({ slot: s, tick: true, accent: s % barSlots === 0 });
+      for (let bar = Math.floor(seg.start / barSlots) * barSlots; bar < seg.end; bar += barSlots) {
+        for (let s = bar; s < bar + barSlots; s += pulse) if (s >= seg.start && s < seg.end) items.push({ slot: s, tick: true, accent: s === bar });
       }
     }
     items.sort((a, b) => a.slot - b.slot || (a.tick ? -1 : 1));

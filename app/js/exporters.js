@@ -10,6 +10,7 @@
 //   project: { ...everything needed to reopen } }
 
 import { spell } from './keys.js';
+import { TIMES, timeInfo, timeOf } from './time.js';
 
 const enc = new TextEncoder();
 const xmlEsc = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
@@ -116,7 +117,7 @@ export function toMusicXML(song) {
         return `<staff-tuning line="${line + 1}"><tuning-step>${step}</tuning-step>${alter ? `<tuning-alter>${alter}</tuning-alter>` : ''}<tuning-octave>${octave(m)}</tuning-octave></staff-tuning>`;
       }).join('');
       L.push(`<attributes><divisions>4</divisions><key><fifths>${song.key?.fifths || 0}</fifths><mode>${song.key?.mode || 'major'}</mode></key>`
-        + `<time><beats>${song.meter}</beats><beat-type>4</beat-type></time><staves>2</staves>`
+        + `<time><beats>${timeInfo(song.time).num}</beats><beat-type>${timeInfo(song.time).den}</beat-type></time><staves>2</staves>`
         + '<clef number="1"><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef>'
         + '<clef number="2"><sign>TAB</sign><line>5</line></clef>'
         + `<staff-details number="2"><staff-lines>${song.strings.length}</staff-lines>${tunings}${song.capo ? `<capo>${song.capo}</capo>` : ''}</staff-details>`
@@ -159,7 +160,7 @@ export function toMIDI(song) {
     return [
       0, 0xff, 0x03, ...vlq(name.length), ...name,
       0, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff,
-      0, 0xff, 0x58, 0x04, song.meter, 2, 24, 8,
+      0, 0xff, 0x58, 0x04, timeInfo(song.time).num, timeInfo(song.time).den === 8 ? 3 : 2, timeInfo(song.time).pulse * 6, 8,
       0, 0xff, 0x59, 0x02, (song.key?.fifths || 0) & 0xff, song.key?.mode === 'minor' ? 1 : 0, // key signature
     ];
   };
@@ -229,7 +230,7 @@ export function toTextTab(song, { lineWidth = 78 } = {}) {
   const out = [];
   if (song.title) out.push(song.title);
   if (song.composer) out.push(`by ${song.composer}`);
-  const info = [`Tuning: ${song.tuningName}`, song.capo ? `Capo ${song.capo}` : '', `Tempo: ${Math.round(song.bpm)} bpm`, `Time: ${song.meter}/4`].filter(Boolean);
+  const info = [`Tuning: ${song.tuningName}`, song.capo ? `Capo ${song.capo}` : '', `Tempo: ${Math.round(song.bpm)} bpm`, `Time: ${song.time}`].filter(Boolean);
   out.push(info.join(' | '), '');
   const parts = song.parts?.length ? song.parts : [{ measures: song.measures }];
   parts.forEach((pt) => {
@@ -275,7 +276,7 @@ export function validateProject(data) {
   const int = Number.isInteger;
   const t = data.take.score.tempo || {};
   const bpm = Number(t.bpm), meter = Number(t.meter);
-  if (!(bpm >= 20 && bpm <= 400) || ![2, 3, 4].includes(meter)) throw damaged();
+  if (!(bpm >= 20 && bpm <= 400) || !TIMES.some((x) => timeInfo(x).meter === meter)) throw damaged();
   if (data.take.score.events.length > 20000) throw damaged();
   const cleanEvents = (list) => list.map((e) => {
     if (!e || !int(e.slot) || e.slot < 0 || !int(e.len) || e.len < 1 || !Array.isArray(e.notes) || !e.notes.length) throw damaged();
@@ -331,7 +332,7 @@ export function validateProject(data) {
     take: {
       source: String(data.take.source || 'project').slice(0, 20),
       notes,
-      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, ...(int(data.take.score.bars) && data.take.score.bars > 0 && data.take.score.bars <= 2000 ? { bars: data.take.score.bars } : {}), events: layers ? layers[active].events : events, ...cleanKey(data.take.score.key) },
+      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, time: timeOf({ meter, time: t.time }), offset: Number(t.offset) || 0 }, ...(int(data.take.score.bars) && data.take.score.bars > 0 && data.take.score.bars <= 2000 ? { bars: data.take.score.bars } : {}), events: layers ? layers[active].events : events, ...cleanKey(data.take.score.key) },
       ...(layers ? { layers, active } : {}),
     },
   };

@@ -10,6 +10,7 @@
 
 import { spell, signature, vexKeySpec } from './keys.js';
 import { DUR } from './rhythm.js';
+import { timeInfo, timeOf } from './time.js';
 
 const ROW_HEIGHT = 240;
 const TAB_OFFSET = 110;
@@ -54,6 +55,7 @@ export function renderScore(el, model, opts = {}) {
   const { Renderer, Stave, TabStave, StaveNote, TabNote, GhostNote, Voice, Formatter, Accidental,
     StaveConnector, Dot, Beam, StaveTie, Annotation, Fraction } = VF;
   const { measures, meter = 4, header = '' } = model;
+  const time = timeInfo(timeOf({ meter, time: model.time }));
   const ghosts = (model.ghosts || []).filter((g) => g.measures?.length);
   const mainStyle = model.layerStyle || null;
   const fifths = model.keyFifths || 0;
@@ -149,7 +151,7 @@ export function renderScore(el, model, opts = {}) {
         stave?.addClef('treble', 'default', '8vb'); tab?.addClef('tab');
         if (fifths) stave?.addKeySignature(vexKeySpec(fifths));
       }
-      if (cell.i === 0) stave?.addTimeSignature(`${meter}/4`);
+      if (cell.i === 0) stave?.addTimeSignature(time.id);
       if (typeof Stave.formatBegModifiers === 'function') Stave.formatBegModifiers([stave, tab].filter(Boolean));
       stave?.setContext(ctx).draw();
       tab?.setContext(ctx).draw();
@@ -222,7 +224,7 @@ export function renderScore(el, model, opts = {}) {
       if (showStaff) ghosts.forEach((g, gi) => {
         const gNotes = [];
         const gInBar = new Map();
-        (g.measures[cell.i] || [{ slots: meter * 4, rest: true }]).forEach((p) => {
+        (g.measures[cell.i] || time.groups.map((slots) => ({ slots, rest: true }))).forEach((p) => {
           const [dur, dots] = DUR[p.slots] || ['q', 0];
           if (p.rest || !p.keys?.length) { gNotes.push(new GhostNote({ duration: dur, dots })); return; }
           const sp = p.keys.map((m) => spell(m + 12, fifths));
@@ -240,22 +242,22 @@ export function renderScore(el, model, opts = {}) {
         });
         let gBeams = [];
         try {
-          gBeams = Beam.generateBeams(gNotes, { groups: [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: true })
+          gBeams = Beam.generateBeams(gNotes, { groups: time.den === 8 ? time.groups.map((n) => new Fraction(n / 2, 8)) : [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: true })
             .filter((b) => b.getNotes().every((x) => x instanceof StaveNote));
         } catch { gBeams = []; }
-        gv.push({ v: new Voice({ num_beats: meter, beat_value: 4 }).setStrict(false).addTickables(gNotes), g, beams: gBeams });
+        gv.push({ v: new Voice({ num_beats: time.num, beat_value: time.den }).setStrict(false).addTickables(gNotes), g, beams: gBeams });
       });
 
       const voices = [];
-      const nv = showStaff ? new Voice({ num_beats: meter, beat_value: 4 }).setStrict(false).addTickables(staffNotes) : null;
-      const tv = showTab ? new Voice({ num_beats: meter, beat_value: 4 }).setStrict(false).addTickables(tabNotes) : null;
+      const nv = showStaff ? new Voice({ num_beats: time.num, beat_value: time.den }).setStrict(false).addTickables(staffNotes) : null;
+      const tv = showTab ? new Voice({ num_beats: time.num, beat_value: time.den }).setStrict(false).addTickables(tabNotes) : null;
       const fmt = new Formatter();
       if (nv) { fmt.joinVoices([nv, ...gv.map((x) => x.v)]); voices.push(nv, ...gv.map((x) => x.v)); }
       if (tv) { fmt.joinVoices([tv]); voices.push(tv); }
       let beams = [];
       if (showStaff) {
         try {
-          beams = Beam.generateBeams(staffNotes, { groups: [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: ghosts.length > 0 });
+          beams = Beam.generateBeams(staffNotes, { groups: time.den === 8 ? time.groups.map((n) => new Fraction(n / 2, 8)) : [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: ghosts.length > 0 });
         } catch { beams = []; }
       }
       const ref = stave || tab;

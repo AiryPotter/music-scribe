@@ -67,7 +67,7 @@ function infoLine(song) {
     song.tuningName && song.tuningName !== 'Standard' ? `Tuning ${song.tuningLetters}` : 'Standard tuning',
     song.capo ? `Capo ${song.capo}` : '',
     `♩ = ${Math.round(song.bpm)}`,
-    `${song.meter}/4`,
+    song.time || `${song.meter}/4`,
   ].filter(Boolean).join('   ·   ');
 }
 

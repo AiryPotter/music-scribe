@@ -18,6 +18,7 @@ import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
 import { removeClickNotes, removePlaybackNotes } from './notes-post.js';
 import * as FX from './fixlog.js';
 import { createBugReporter } from './bugreport.js';
+import { DEFAULT_TIME, TIMES, timeInfo, timeOf } from './time.js';
 import { JAM_SIZES, jamSizes, defaultJamSize, nextTop, loopNotes, splitRounds } from './jam.js';
 
 // the last few errors, for bug reports (they stay on this device unless a report is shared)
@@ -85,7 +86,8 @@ let busy = false;
 ui.sens.value = store.get('sens', '55');
 ui.bpm.value = store.get('bpm', '100');
 ui.click.checked = store.get('click', '0') === '1';
-ui.meterSel.value = store.get('meter', 'auto');
+for (const t of TIMES) ui.meterSel.add(new Option(t, t));
+ui.meterSel.value = DEFAULT_TIME;
 ui.click.addEventListener('change', () => store.set('click', ui.click.checked ? '1' : '0'));
 
 function gateFromSens(s) { return 0.05 * Math.pow(0.04, s / 100); }
@@ -171,7 +173,7 @@ async function refreshMics() {
     if (m.deviceId === 'default' || m.deviceId === '') return;
     ui.mic.add(new Option(m.label || `Microphone ${i + 1}`, m.deviceId));
   });
-  if (DEMO) ui.mic.add(new Option('Demo song (no mic)', '__demo__'));
+  if (DEMO) ui.mic.add(new Option('Demo: funky Saints (no mic)', '__demo__'));
   const known = chosen && [...ui.mic.options].some((o) => o.value === chosen);
   ui.mic.value = known ? chosen : (DEMO ? '__demo__' : '');
 }
@@ -229,11 +231,21 @@ applyZoom();
 
 // ---------- demo song (for testing without a guitar) ----------
 // [beat, notes, length in beats] — one 4-bar phrase, played twice
+// "When the Saints Go Marching In" (traditional), made funky: the tune pushes onto the off-beats,
+// with G7, C9 and D7 stabs and a bass walk in the gaps. [beat, notes, length in beats]
+const DEMO_BPM = 112;
+const G7 = [53, 59, 62], C9 = [52, 58, 62], D7 = [54, 60, 64];
+const pickup = (b) => [[b, [43], 0.5], [b + 1, [55], 0.5], [b + 2, [59], 0.5], [b + 3, [60], 0.5], [b + 3.5, [62], 1.5]];
 const DEMO_SONG = [
-  [0, [40], 1], [1, [45], 1], [2, [50], 0.5], [2.5, [55], 0.5], [3, [59], 1],
-  [4, [48, 52, 55, 60, 64], 2], [6, [43, 47, 50, 55, 59, 67], 2],
-  [8, [57], 0.5], [8.5, [60], 0.5], [9, [64], 1], [10, [62], 1], [11, [60], 1],
-  [12, [45, 52, 57, 60, 64], 1], [13, [45, 52, 57, 60, 64], 1], [14, [41, 48, 53, 57, 60, 65], 2],
+  ...pickup(0), [5.5, G7, 0.5], [6.5, [43], 0.5], [7, [46], 0.5], [7.5, [47], 0.5],              // Oh when the Saints
+  ...pickup(8), [13.5, G7, 0.5], [14.5, [43], 0.5], [15, [46], 0.5], [15.5, [47], 0.5],          // go marching in
+  ...pickup(16), [21, [62], 1], [22, [59], 1], [23, [55], 1], [24, [59], 1.5], [25.5, [57], 2], // Oh when the Saints go marching in
+  [28, D7, 0.5], [29.5, D7, 0.5], [30.5, [50], 0.5], [31, [47], 0.5], [31.5, [45], 0.5],
+  [32, [43], 0.5], [33, [59], 0.5], [33.5, [59], 0.5], [34, [57], 1], [35, [55], 1.5],          // Oh Lord, I want to be
+  [36.5, [55], 1], [37.5, [59], 1], [38.5, [62], 0.5], [39, [62], 0.5], [39.5, [62], 0.5], [40, [60], 2], // in that number
+  [42, C9, 0.5], [43, C9, 0.5], [44, [48], 0.5], [44.5, [46], 0.5], [45, [43], 1],
+  [46, [59], 1], [47, [60], 0.5], [47.5, [62], 1.5], [49, [59], 1], [50, [55], 1], [51, [57], 2], // when the Saints go marching in
+  [53, D7, 0.5], [54, [45], 0.5], [54.5, [42], 0.5], [55, [43], 0.5], [56, [43, 53, 59, 62], 0.5], [57.5, [43, 53, 59, 62], 0.5], [59, [43, 55, 59, 67], 1],
 ];
 function openDemo() {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -283,12 +295,9 @@ function openDemo() {
     ctx, analyser, source: bus, deviceId: '__demo__', label: 'Demo song', leak,
     play(at, bpm) {
       const p = 60 / bpm;
-      for (let loop = 0; loop < 2; loop++) {
-        for (const [beat, ms, len] of DEMO_SONG) {
-          const t = at + (loop * 16 + beat) * p;
-          const level = ms.length > 1 ? 0.13 : 0.3;
-          ms.forEach((m, k) => pluck(t + k * 0.012, m, len * p * 0.95, level));
-        }
+      for (const [beat, ms, len] of DEMO_SONG) {
+        const level = ms.length > 1 ? 0.16 : 0.3;
+        ms.forEach((m, k) => pluck(at + beat * p + k * 0.012, m, len * p * 0.95, level));
       }
     },
     close() { ctx.close().catch(() => {}); },
@@ -378,7 +387,8 @@ async function start({ jamming = false } = {}) {
 
   const ctx = session.ctx;
   const bpm = (song || jamSong) ? (song || jamSong).score.tempo.bpm : clampBpm(ui.bpm.value);
-  const meter = (song || jamSong) ? (song || jamSong).score.tempo.meter : ui.meterSel.value === 'auto' ? 4 : Number(ui.meterSel.value);
+  const timeSig = timeInfo((song || jamSong) ? timeOf((song || jamSong).score.tempo) : ui.meterSel.value);
+  const meter = timeSig.meter, ticks = timeSig.ticks, tickBpm = (bpm * SLOTS_PER_BEAT) / timeSig.pulse; // (6/8 ticks on dotted quarters, 7/8 on eighths)
   countInEnd = 0;
   let clickInfo = null;
   if (jamSong) {
@@ -399,13 +409,13 @@ async function start({ jamming = false } = {}) {
   } else if (ui.click.checked || song) { // a new layer always gets a one-bar count-in, so it lines up with the others
     const countOnly = !ui.click.checked;
     metro = new Metronome(ctx, {
-      bpm, meter, leak: session.leak || null, beats: countOnly ? meter : 0,
-      onBeat: (b) => { if (b < meter) mozart.say(String(b + 1)); else if (b === meter) mozart.say(''); },
+      bpm: tickBpm, meter: ticks, leak: session.leak || null, beats: countOnly ? ticks : 0,
+      onBeat: (b) => { if (b < ticks) mozart.say(String(b + 1)); else if (b === ticks) mozart.say(''); },
     });
     clickLag = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.005;
     const t0 = metro.start(ctx.currentTime + 0.2);
     countInEnd = t0 + meter * (60 / bpm);
-    clickInfo = { bpm, meter, downbeat: countInEnd, first: t0, countOnly };
+    clickInfo = { bpm, meter, tickBpm, ticks, downbeat: countInEnd, first: t0, countOnly };
     if (countOnly) setTimeout(() => { if (metro && session) mozart.say(''); }, (countInEnd - ctx.currentTime) * 1000 + 300);
   }
   session.clickInfo = clickInfo;
@@ -414,13 +424,13 @@ async function start({ jamming = false } = {}) {
     const slotDur = 60 / bpm / SLOTS_PER_BEAT;
     const playing = song.layers.map((L, k) => ({ L, k })).filter(({ L, k }) => k !== song.active && !L.mute && L.events.length);
     const backing = new Player();
-    backing.start(ctx, playing.map(({ L }) => ({ events: L.events, volume: L.vol ?? 1, pan: LAYER_PAN[L.hue] })), bpm, 0, { meter, at: countInEnd });
+    backing.start(ctx, playing.map(({ L }) => ({ events: L.events, volume: L.vol ?? 1, pan: LAYER_PAN[L.hue] })), bpm, 0, { meter, pulse: timeSig.pulse, at: countInEnd });
     session.overdub = {
       song, layer: song.active, bpm, meter, downbeat: countInEnd, backing,
       played: playing.flatMap(({ L }) => L.events.flatMap((ev) => ev.notes.map((n) => ({ midi: n.midi, t: countInEnd + ev.slot * slotDur, dur: ev.len * slotDur })))),
     };
   }
-  if (session.play) session.play(countInEnd || ctx.currentTime + 0.3, clickInfo || jamSong ? bpm : 100);
+  if (session.play) session.play(countInEnd || ctx.currentTime + 0.3, clickInfo || jamSong ? bpm : DEMO_BPM);
 
   updateUndoUi();
   ui.record.classList.add('on');
@@ -543,7 +553,7 @@ function setStatus(text, isBusy = false) {
 
 /** When every click reached the mic, in seconds from the start of the recording. */
 function beatTimes(click, untilSecs) {
-  const p = 60 / click.bpm, out = [];
+  const p = 60 / (click.tickBpm || click.bpm), out = [];
   for (let c = click.first ?? click.downbeat; c <= untilSecs + p; c += p) out.push(c);
   return out;
 }
@@ -600,11 +610,11 @@ async function analyzeTake() {
 }
 
 function computeTempo(t, { keepBpm = false } = {}) {
-  const forcedMeter = ui.meterSel.value === 'auto' ? null : Number(ui.meterSel.value);
+  const T = timeInfo(ui.meterSel.value);
   if (t.click && !keepBpm) {
     const bpm = t.click.bpm;
     const beat0 = phaseFor(t.events, bpm, t.click.downbeat);
-    t.tempo = { bpm, beat0, meter: forcedMeter || t.click.meter, offset: 0 };
+    t.tempo = { bpm, beat0, meter: T.meter, time: T.id, offset: 0 };
   } else {
     let bpm, beat0;
     if (keepBpm) {
@@ -615,8 +625,13 @@ function computeTempo(t, { keepBpm = false } = {}) {
       bpm = est ? est.bpm : clampBpm(ui.bpm.value);
       beat0 = est ? est.beat0 : (t.events[0]?.t ?? 0);
     }
-    const m = detectMeter(t.events, bpm, beat0, forcedMeter);
-    t.tempo = { bpm, beat0, meter: m.meter, offset: m.offset };
+    if (T.den === 4) { // which beat is "one"
+      const m = detectMeter(t.events, bpm, beat0, T.meter);
+      t.tempo = { bpm, beat0, meter: T.meter, time: T.id, offset: m.offset };
+    } else { // bars in eighths start where the playing starts
+      const p = 60 / bpm, first = t.events[0]?.t ?? beat0;
+      t.tempo = { bpm, beat0: beat0 + Math.round((first - beat0) / p) * p, meter: T.meter, time: T.id, offset: 0 };
+    }
   }
   ui.bpm.value = String(Math.round(t.tempo.bpm));
 }
@@ -643,15 +658,17 @@ function layoutTake(t, { quiet = false } = {}) {
   const fifths = t.score.key.fifths;
   setNameKey(fifths);
   const barSlots = meter * SLOTS_PER_BEAT;
+  const time = timeInfo(timeOf(tempo));
+  ui.meterSel.value = time.id; // the picker always shows the song's own time signature
   layersOf(t);
   syncLayer(t);
   const layered = t.layers.length > 1;
   // the other layers, laid out on the same bars (drawn faintly behind, or bold in the All view)
   const others = layered ? t.layers.map((L, k) => ({ L, k })).filter(({ L, k }) => k !== t.active && L.events.length) : [];
-  const otherBars = others.map(({ L }) => layoutBars(L.events, barSlots));
-  const bars = layoutBars(events, barSlots, Math.max(1, t.score.bars || 0, ...otherBars.map((b) => b.length)));
+  const otherBars = others.map(({ L }) => layoutBars(L.events, barSlots, 1, time));
+  const bars = layoutBars(events, barSlots, Math.max(1, t.score.bars || 0, ...otherBars.map((b) => b.length)), time);
   const ghosts = others.map(({ L }, j) => {
-    while (otherBars[j].length < bars.length) otherBars[j].push([{ slots: barSlots, rest: true }]);
+    while (otherBars[j].length < bars.length) otherBars[j].push(time.groups.map((slots) => ({ slots, rest: true })));
     return {
       color: LAYER_HUES[L.hue],
       fade: LAYER_FADE[L.hue],
@@ -713,7 +730,7 @@ function layoutTake(t, { quiet = false } = {}) {
   t.model = {
     ghosts,
     layerStyle: layered ? { color: allView ? LAYER_HUES[A.hue] : ACTIVE_INK, fade: LAYER_FADE[A.hue], thin: allView && !!A.thin } : null,
-    measures, meter, keyFifths: fifths, header: scoreHeader(), label: `Manuscript${t.title ? `: ${t.title}` : ''}, ${measures.length} bar${measures.length === 1 ? '' : 's'}, ${meter}/4 at ${Math.round(tempo.bpm)} beats per minute. Use the arrow keys to move between notes.` };
+    measures, meter, time: time.id, keyFifths: fifths, header: scoreHeader(), label: `Manuscript${t.title ? `: ${t.title}` : ''}, ${measures.length} bar${measures.length === 1 ? '' : 's'}, ${time.id} at ${Math.round(tempo.bpm)} beats per minute. Use the arrow keys to move between notes.` };
   layoutVersion++;
   const noteCount = events.reduce((s, ev) => s + ev.notes.length, 0);
   ui.count.textContent = `${noteCount} note${noteCount === 1 ? '' : 's'}${layered ? ` · ${A.name}` : ''}`;
@@ -721,7 +738,7 @@ function layoutTake(t, { quiet = false } = {}) {
   if (!quiet) {
     const how = t.source === 'accurate' ? 'Accurate' : 'From live notes (offline)';
     syncKeyUi();
-    setStatus(`${how} · ♩=${Math.round(tempo.bpm)} · ${meter}/4 · ${keyName(t.score.key)} · ${measures.length} bar${measures.length === 1 ? '' : 's'}${chordCount ? ` · ${chordCount} chord${chordCount === 1 ? '' : 's'}` : ''}${t.edited ? ' · edited' : ''}`);
+    setStatus(`${how} · ♩=${Math.round(tempo.bpm)} · ${time.id} · ${keyName(t.score.key)} · ${measures.length} bar${measures.length === 1 ? '' : 's'}${chordCount ? ` · ${chordCount} chord${chordCount === 1 ? '' : 's'}` : ''}${t.edited ? ' · edited' : ''}`);
   }
   scheduleRender();
   if (sel) refreshEditor();
@@ -778,6 +795,13 @@ function onTempoEdit(newBpm) {
 function rethinkRhythm(change) {
   const hadEdits = !!take.edited;
   pushHistory();
+  if (!take.notes?.length) { // nothing to re-read (an opened project without its playing): keep the notes as they are
+    take.tempo = { ...take.score.tempo };
+    change();
+    const T = timeInfo(ui.meterSel.value);
+    rebar({ ...take.tempo, meter: T.meter, time: T.id });
+    return;
+  }
   change();
   computeTempo(take, { keepBpm: true });
   requantize(take);
@@ -791,12 +815,22 @@ ui.bpmUp.addEventListener('click', () => onTempoEdit(clampBpm(ui.bpm.value) + 1)
 ui.bpmDown.addEventListener('click', () => onTempoEdit(clampBpm(ui.bpm.value) - 1));
 ui.bpmHalf.addEventListener('click', () => onTempoEdit(clampBpm(ui.bpm.value) / 2));
 ui.bpmDouble.addEventListener('click', () => onTempoEdit(clampBpm(ui.bpm.value) * 2));
+/** Put the bar lines somewhere else without touching a single note. */
+function rebar(tempo) {
+  take.tempo = { ...tempo };
+  take.score.tempo = { ...tempo };
+  delete take.score.bars;
+  take.edited = true;
+  closeEditor({ relayout: false });
+  layoutTake(take);
+}
 ui.meterSel.addEventListener('change', () => {
-  store.set('meter', ui.meterSel.value);
-  if (!take?.events || session) return;
-  const from = take.score?.tempo.meter;
-  rethinkRhythm(() => {});
-  if (from && take.score.tempo.meter !== from) logFix({ kind: 'meter', from, to: take.score.tempo.meter });
+  if (!take?.score || !take?.events || session) return;
+  const from = timeOf(take.score.tempo), T = timeInfo(ui.meterSel.value);
+  if (T.id === from) return;
+  if (take.edited) { pushHistory(); rebar({ ...take.score.tempo, meter: T.meter, time: T.id }); } // keep the edits
+  else rethinkRhythm(() => {});
+  logFix({ kind: 'meter', from, to: T.id });
 });
 
 // ---------- analysis loop ----------
@@ -1026,7 +1060,7 @@ setMore(store.get('edMore', '0') === '1');
 
 // ---------- practice options: speed, loop, click (playback only) ----------
 const practice = {
-  speed: Math.max(40, Math.min(100, Number(store.get('prSpeed', '100')) || 100)),
+  speed: 100, // always starts at normal speed
   click: store.get('prClick', '0') === '1',
   bars: [1, 2, 4].includes(Number(store.get('prBars', '1'))) ? Number(store.get('prBars', '1')) : 1,
   loop: false,
@@ -1067,8 +1101,8 @@ function changePractice(fn) {
     togglePlay();
   }
 }
-$('prSpeed').addEventListener('input', () => { practice.speed = Number($('prSpeed').value); $('prSpeedOut').textContent = `${practice.speed}%`; });
-$('prSpeed').addEventListener('change', () => changePractice(() => store.set('prSpeed', String(practice.speed))));
+$('prSpeed').addEventListener('input', () => { practice.speed = Math.max(25, Number($('prSpeed').value)); if (Number($('prSpeed').value) < 25) $('prSpeed').value = '25'; $('prSpeedOut').textContent = `${practice.speed}%`; });
+$('prSpeed').addEventListener('change', () => changePractice(() => {}));
 $('prClick').addEventListener('change', () => changePractice(() => { practice.click = $('prClick').checked; store.set('prClick', practice.click ? '1' : '0'); }));
 $('prLoop').addEventListener('click', () => changePractice(() => {
   practice.loop = !practice.loop;
@@ -1162,7 +1196,7 @@ function togglePlay() {
   setAudioSession('playback');
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   wake(earCtx);
-  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, loop });
+  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, loop });
   ui.play.textContent = '❚❚';
   ui.play.setAttribute('aria-label', 'Pause');
   ui.play.classList.add('on');
@@ -1374,10 +1408,9 @@ async function analyzeLayer(od, rec, click, latency, live) {
   setProgress(0);
   const rel = (t) => t - rec.startTime;
   const downbeat = rel(od.downbeat) + latency;
-  const p = 60 / od.bpm;
   const recSecs = rec.samples.length / rec.sampleRate;
   const clickTimes = !click ? null : click.countOnly
-    ? Array.from({ length: od.meter }, (_, k) => downbeat - (od.meter - k) * p)
+    ? Array.from({ length: click.ticks }, (_, k) => downbeat - (click.ticks - k) * (60 / click.tickBpm))
     : beatTimes({ ...click, first: rel(click.first) + latency, downbeat }, recSecs);
   let result = null;
   try {
@@ -1476,7 +1509,7 @@ function startJam(extra = null) {
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return false; }
   wake(earCtx);
   jam.hearing = extra;
-  jam.player.start(earCtx, layers, take.score.tempo.bpm, jam.loop.start, { click: practice.click, meter: take.score.tempo.meter, loop: jam.loop, fullLoop: true });
+  jam.player.start(earCtx, layers, take.score.tempo.bpm, jam.loop.start, { click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, loop: jam.loop, fullLoop: true });
   clearInterval(jam.timer);
   jam.timer = setInterval(showJamPos, 150);
   return true;
@@ -1492,7 +1525,7 @@ function stopJam() {
 function showJamPos() {
   const p = jam.player;
   if (!p.playing) return;
-  const beats = take.score.tempo.meter, beat = p.slotDur * SLOTS_PER_BEAT;
+  const T = timeInfo(timeOf(take.score.tempo)), beats = T.num, beat = p.slotDur * (16 / T.den);
   const t = Math.max(0, earCtx.currentTime - p.t0), inLoop = t % p.cycleDur;
   const where = `bar ${jam.from + Math.floor(inLoop / (beat * beats))} · beat ${Math.floor(inLoop / beat) % beats + 1}`;
   const rec = session?.jam;
@@ -1667,7 +1700,7 @@ const bugs = createBugReporter({
       ['When', new Date().toString().replace(/ \(.*\)$/, '')],
       ['Browser', navigator.userAgent],
       ['Screen', `${screen.width}×${screen.height}, window ${innerWidth}×${innerHeight}, zoom ${Math.round((Number(document.documentElement.style.zoom) || 1) * 100)}%${matchMedia('(display-mode: standalone)').matches || navigator.standalone ? ', home-screen app' : ''}`],
-      ['Take', t ? `${t.title || 'Untitled'} · ${t.source || ''} · ${Math.round(t.score.tempo.bpm)} bpm · ${t.score.tempo.meter}/4 · ${keyName(t.score.key)} · ${t.model?.measures.length ?? 0} bars` : 'none open'],
+      ['Take', t ? `${t.title || 'Untitled'} · ${t.source || ''} · ${Math.round(t.score.tempo.bpm)} bpm · ${timeOf(t.score.tempo)} · ${keyName(t.score.key)} · ${t.model?.measures.length ?? 0} bars` : 'none open'],
       ['Layers', L?.length ? L.map((x, k) => `${x.name}${k === t.active ? '*' : ''} (${x.events.length} notes${x.mute ? ', muted' : ''})`).join(', ') : '1'],
       ['Settings', `Detail ${ui.detailSel.value}, Metronome ${ui.click.checked ? 'on' : 'off'}, tuning ${guitar.id}, capo ${guitar.capo}, mic ${ui.mic.value === '__demo__' ? 'demo' : 'device'}`],
       ['Recent errors', recentErrors.length ? recentErrors.join(' | ') : 'none'],
@@ -1726,6 +1759,7 @@ function pieceLabel(ev, pl) {
 function whereLabel(slot) {
   const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
   const inBar = slot % barSlots;
+  if (timeInfo(timeOf(take.score.tempo)).den === 8) return `Bar ${Math.floor(slot / barSlots) + 1}, beat ${Math.floor(inBar / 2) + 1}${inBar % 2 ? '½' : ''}`; // beats are eighths
   const frac = ['', '¼', '½', '¾'][inBar % SLOTS_PER_BEAT];
   return `Bar ${Math.floor(slot / barSlots) + 1}, beat ${Math.floor(inBar / SLOTS_PER_BEAT) + 1}${frac}`;
 }
@@ -1955,7 +1989,7 @@ function copyPicked({ quiet = false } = {}) {
   const layers = {};
   if (whole) take.layers.forEach((L) => { layers[L.hue] = E.extractBars(L.events, bars, barSlots); });
   else layers[A.hue] = E.extractBars(take.score.events, bars, barSlots, new Set(t.map((i) => take.score.events[i])));
-  clip = { bars: bars.length, meter: take.score.tempo.meter, take: take.id, hue: A.hue, layers, whole, count: t.length };
+  clip = { bars: bars.length, meter: timeOf(take.score.tempo), take: take.id, hue: A.hue, layers, whole, count: t.length };
   if (!quiet) showToast(`${copyText(clip, 'Copied')} · Ctrl+V puts ${clip.whole && clip.bars === 1 ? 'it' : 'them'} in after the bar you tap`);
   return true;
 }
@@ -1972,7 +2006,7 @@ function cutPicked() {
 function pasteClip() {
   if (!clip) { showToast('Nothing copied yet. Select some notes and press Ctrl+C.'); return; }
   if (writing() || !take.model) return;
-  if (clip.meter !== take.score.tempo.meter) { showToast(`That was copied from a ${clip.meter}/4 song, so it doesn’t fit these ${take.score.tempo.meter}/4 bars.`); return; }
+  if (clip.meter !== timeOf(take.score.tempo)) { showToast(`That was copied from ${clip.meter} music, so it doesn’t fit these ${timeOf(take.score.tempo)} bars.`); return; }
   syncLayer();
   pushHistory();
   const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, total = take.model.measures.length, bars = barList();
@@ -2274,7 +2308,7 @@ document.addEventListener('keydown', (e) => {
 let layoutVersion = 0;
 /** One layer laid out for export: bars (as long as the song), tab positions and chord names. */
 function partMeasures(events, barSlots, nBars, fifths) {
-  const bars = layoutBars(events, barSlots, nBars);
+  const bars = layoutBars(events, barSlots, nBars, timeInfo(timeOf(take.score.tempo)));
   const pk = new FretPicker(tuningStrings(), guitar.capo);
   let lastChord = '';
   const placed = events.map((ev) => {
@@ -2322,6 +2356,7 @@ function buildSong(which = 'one') {
     composer: store.get('composer', ''),
     bpm: t.score.tempo.bpm,
     meter: t.score.tempo.meter,
+    time: timeOf(t.score.tempo),
     key: t.score.key,
     strings,
     capo: guitar.capo,
@@ -2411,7 +2446,7 @@ function openProject(data, saved = null) {
     showToast('That project couldn’t be opened. Nothing was changed.');
     return;
   }
-  setStatus(`Opened “${take.title || 'project'}” · ♩=${Math.round(take.tempo.bpm)} · ${take.tempo.meter}/4`);
+  setStatus(`Opened “${take.title || 'project'}” · ♩=${Math.round(take.tempo.bpm)} · ${timeOf(take.score.tempo)}`);
   updateUndoUi();
 }
 

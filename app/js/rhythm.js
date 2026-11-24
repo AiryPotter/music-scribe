@@ -162,12 +162,32 @@ export function detectMeter(events, bpm, beat0, forced = null, { bassAccent = tr
 export const DUR = { 16: ['w', 0], 12: ['h', 1], 8: ['h', 0], 6: ['q', 1], 4: ['q', 0], 3: ['8', 1], 2: ['8', 0], 1: ['16', 0] };
 const LENS = [16, 12, 8, 6, 4, 3, 2, 1];
 
-function pickLen(pos, room, barSlots) {
+/** A length that shows the beats of a 6/8, 7/8, 9/8 or 12/8 bar: inside one beat group, or whole groups together. */
+function pickGrouped(pos, room, groups) {
+  let gs = 0, gi = 0;
+  while (pos >= gs + groups[gi]) { gs += groups[gi]; gi++; }
+  const inGroup = pos - gs, left = groups[gi] - inGroup;
+  if (inGroup === 0) { // whole groups from here that make one written note
+    let sum = 0, best = 0;
+    for (let k = gi; k < groups.length; k++) { sum += groups[k]; if (sum <= room && (sum === groups[gi] || (sum === 12 && gi % 2 === 0) || sum === 8) && LENS.includes(sum)) best = sum; }
+    if (best) return best;
+  }
+  for (const len of [6, 4, 3, 2, 1]) {
+    if (len > room || len > left) continue;
+    if (len > 1 && inGroup % 2 !== 0) continue;
+    return len;
+  }
+  return 1;
+}
+function pickLen(pos, room, barSlots, time) {
+  if (time?.den === 8) return pickGrouped(pos, room, time.groups);
   for (const len of LENS) {
     if (len > room) continue;
     if (len === 16 && !(pos === 0 && barSlots === 16)) continue;
     if (len === 12 && pos !== 0) continue;
-    if (len === 8 && !(pos % 8 === 0 || (barSlots === 12 && pos === 4))) continue;
+    if (barSlots === 20) { // 5/4 is felt 3 + 2
+      if (len === 8 && pos !== 0 && pos !== 4 && pos !== 12) continue;
+    } else if (len === 8 && !(pos % 8 === 0 || (barSlots === 12 && pos === 4))) continue;
     if ((len === 6 || len === 4 || len === 3) && pos % 4 !== 0) continue;
     if (len === 2 && pos % 2 !== 0) continue;
     return len;
@@ -533,7 +553,7 @@ function quantizeSimple(notes, tempo, { anchor = false } = {}) {
  * Returns measures: [[piece]] with piece = { slots, at, rest, evIdx, tieFromPrev, tieToNext,
  * restAt, restLen } (restAt/restLen = the whole gap a rest piece belongs to).
  */
-export function layoutBars(events, barSlots, minBars = 1) {
+export function layoutBars(events, barSlots, minBars = 1, time = null) {
   const items = [];
   let cursor = 0;
   events.forEach((ev, idx) => {
@@ -555,7 +575,7 @@ export function layoutBars(events, barSlots, minBars = 1) {
       const bar = Math.floor(pos / barSlots);
       const inBar = pos - bar * barSlots;
       const room = Math.min(remaining, barSlots - inBar);
-      const len = pickLen(inBar, room, barSlots);
+      const len = pickLen(inBar, room, barSlots, time);
       const piece = {
         slots: len, at: pos, rest: !!it.rest, evIdx: it.rest ? null : it.evIdx,
         tieFromPrev: !it.rest && !firstPiece, tieToNext: false,

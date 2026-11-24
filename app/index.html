@@ -203,7 +203,7 @@
         <button id="practiceToggle" class="guitar-toggle" type="button" aria-expanded="false"><span>Practice: 100%</span> <i aria-hidden="true">▾</i></button>
         <label class="pr-speed">
           <span class="ed-label">Speed</span>
-          <input id="prSpeed" type="range" min="40" max="100" step="5" value="100" aria-label="Playback speed, percent">
+          <input id="prSpeed" type="range" min="0" max="400" step="25" value="100" list="prSpeedMarks" aria-label="Playback speed, percent"><datalist id="prSpeedMarks"><option value="100"></option><option value="200"></option><option value="300"></option><option value="400"></option></datalist>
           <output id="prSpeedOut">100%</output>
         </label>
         <div class="pr-loop" role="group" aria-label="Loop">
@@ -232,10 +232,6 @@
         <label class="meter-pick">
           <span>Time</span>
           <select id="meterSelect" aria-label="Time signature">
-            <option value="auto">Auto</option>
-            <option value="4">4/4</option>
-            <option value="3">3/4</option>
-            <option value="2">2/4</option>
           </select>
         </label>
         <label class="meter-pick">
