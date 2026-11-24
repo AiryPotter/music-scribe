@@ -154,6 +154,31 @@ export function insertClip(events, at, len, clip) {
   events.sort((x, y) => x.slot - y.slot);
   return added;
 }
+/** Put notes in from slot `at`, moving later notes on only as far as needed. In place; returns the new events. */
+export function pasteNotes(events, at, clip) {
+  if (!clip.length) return [];
+  const len = Math.max(...clip.map((e) => e.slot + e.len));
+  for (const e of events) if (e.slot < at && e.slot + e.len > at) e.len = at - e.slot; // a held note stops where they start
+  const next = Math.min(...events.filter((e) => e.slot >= at).map((e) => e.slot), Infinity);
+  const push = next === Infinity ? 0 : Math.max(0, at + len - next);
+  for (const e of events) if (e.slot >= at) e.slot += push;
+  const added = clip.map((e) => ({ ...copyEvent(e), slot: e.slot + at }));
+  events.push(...added);
+  events.sort((x, y) => x.slot - y.slot);
+  return added;
+}
+/** Take a silence out: later notes slide up. Returns false if nothing comes after it. */
+export function removeRest(events, at, len) {
+  const later = events.filter((e) => e.slot >= at + len);
+  for (const e of later) e.slot -= len;
+  return later.length > 0;
+}
+/** Hold the note before a silence through to its end. Returns the note's index, or -1 if there isn't one. */
+export function holdOver(events, at, len) {
+  const i = events.findLastIndex((e) => e.slot < at);
+  if (i >= 0) events[i].len = at + len - events[i].slot;
+  return i;
+}
 /** Cut the stretch a…b out (a note ringing into it stops at a). In place. */
 export function cutSpan(events, a, b) {
   for (let i = events.length - 1; i >= 0; i--) {

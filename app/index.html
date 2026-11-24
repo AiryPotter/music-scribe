@@ -363,7 +363,8 @@
           <li><b>▲ ▼</b>, <kbd>W</kbd> <kbd>S</kbd>, <kbd>+</kbd> <kbd>−</kbd> or <kbd>↑</kbd> <kbd>↓</kbd>: a step up or down in the key. <b>♭ ♯</b> or <kbd>Shift</kbd>: one fret. <b>±8ve</b>: an octave.</li>
           <li><kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd>: previous / next note. <kbd>Delete</kbd>: remove it (the rest slides up). <kbd>Space</kbd>: play / pause. <kbd>Ctrl</kbd>+<kbd>Z</kbd>: undo.</li>
           <li><b>+ Bar</b>, <b>Duplicate bar</b> and <b>Delete bar</b> (under the manuscript) work on the bar you've tapped a note or rest in, in every layer. Pick notes in several bars to duplicate or delete just those bars. With nothing tapped, + Bar adds one at the end.</li>
-          <li><b>On a PC:</b> <kbd>Ctrl</kbd>+click adds a note to the selection, <kbd>Shift</kbd>+click selects everything in between, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+click adds the whole bar. Then <kbd>Ctrl</kbd>+<kbd>C</kbd> copy, <kbd>Ctrl</kbd>+<kbd>X</kbd> cut, <kbd>Ctrl</kbd>+<kbd>V</kbd> paste after the bar you tap, <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate the bars, <kbd>Ctrl</kbd>+<kbd>A</kbd> select all, <kbd>Esc</kbd> let go.</li>
+          <li><b>On a PC:</b> <kbd>Ctrl</kbd>+click adds a note to the selection, <kbd>Shift</kbd>+click selects everything in between, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+click picks whole bars. Then <kbd>Ctrl</kbd>+<kbd>C</kbd> copy, <kbd>Ctrl</kbd>+<kbd>X</kbd> cut, <kbd>Ctrl</kbd>+<kbd>V</kbd> paste, <kbd>Ctrl</kbd>+<kbd>D</kbd> delete, <kbd>Ctrl</kbd>+<kbd>A</kbd> select all, <kbd>Esc</kbd> let go. Notes paste into the rest you tap, or straight after the note you tap; bars paste as new bars.</li>
+          <li><b>Tap a rest</b> to add a note there, <b>Remove rest</b> (the notes after it slide up), or <b>Hold the note before</b> through it.</li>
           <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together.</li>
           <li><b>Detail</b>: <i>Simple</i> for a clean, readable page; <i>Detailed</i> keeps every rest and 16th note.</li>
           <li><b>Practice</b>: slow it down, loop a few bars, add a metronome to the playback.</li>
@@ -479,6 +480,8 @@
     <div id="edRestTools" class="ed-body" hidden>
       <div class="ed-row">
         <button class="ed-btn primary" type="button" data-act="fill">+ Add a note here</button>
+        <button class="ed-btn" type="button" data-act="rest-remove" title="Take the rest out; the notes after it slide up (Delete)">Remove rest</button>
+        <button class="ed-btn" type="button" data-act="rest-hold" title="Make the note before last through this rest">Hold the note before</button>
       </div>
     </div>
   </section>

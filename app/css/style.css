@@ -1038,10 +1038,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .tool-btn.danger:hover { background: color-mix(in srgb, var(--seal) 10%, transparent); }
 .tool-btn:focus-visible { outline: 2px solid var(--burgundy); outline-offset: 2px; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .tool-btn { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+  :root:not([data-theme="light"]) .tool-btn:not(.on) { background: color-mix(in srgb, var(--card) 85%, black 15%); }
   :root:not([data-theme="light"]) .tool-btn.danger { color: #e98a7a; }
 }
-:root[data-theme="dark"] .tool-btn { background: color-mix(in srgb, var(--card) 85%, black 15%); }
+:root[data-theme="dark"] .tool-btn:not(.on) { background: color-mix(in srgb, var(--card) 85%, black 15%); }
 :root[data-theme="dark"] .tool-btn.danger { color: #e98a7a; }
 @media (max-width: 520px) {
   .ms-tools .tool-btn { flex: 1 1 auto; }
@@ -1140,7 +1140,7 @@ button.layer-chip:disabled { opacity: .45; cursor: default; }
 }
 .mix-row .lc-dot { margin: 0; }
 .mix-name { font: inherit; font-size: 16px; font-weight: 700; text-align: left; background: none; border: 0; padding: 2px 0; color: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mix-row.on .mix-name { color: var(--layer); }
+.mix-row.on .mix-name { text-decoration: underline; text-decoration-color: var(--layer); text-decoration-thickness: 3px; text-underline-offset: 3px; }
 .mix-row.muted .mix-name { opacity: .5; }
 .mix-row input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--layer); }
 .mix-empty { margin: 6px 0 2px; font-size: 14px; font-style: italic; color: var(--text-soft); }

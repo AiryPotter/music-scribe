@@ -42,7 +42,8 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 - **+ Bar / Duplicate bar / Delete bar**: work on the bar you've tapped a note or rest in (or every bar that has a picked note), in **every layer** so they stay lined up; with nothing tapped, + Bar adds an empty bar at the end. A note ringing across the join of an added or deleted bar stops at the bar line. Undo-able.
 - **Clear Thy Manuscript**: clears the page (Undo brings it back).
 - **PC selection:** Ctrl+click adds or removes a note, Shift+click selects every note in between, Ctrl+Shift+click adds or removes a whole bar, Ctrl+A selects the layer, Esc lets go.
-- **PC clipboard:** Ctrl+C copy, Ctrl+X cut, Ctrl+V paste, Ctrl+D duplicate the bars. If every note of the bars is selected, those bars are copied in every layer; otherwise just the selected notes of the layer being edited. Paste adds new bars after the tapped bar (or at the end). Pasting into another song goes into the layer being edited, and the time signature must match.
+- **PC clipboard:** Ctrl+C copy, Ctrl+X cut, Ctrl+V paste, Ctrl+D delete (same as Delete). Notes paste into the tapped rest, or straight after the tapped or selected notes; later notes in that layer move on only as far as needed. Bars picked with Ctrl+Shift+click are copied, pasted and deleted as bars in every layer.
+- **Rests:** tap one for **Remove rest** (or Delete; later notes in that layer slide up) or **Hold the note before** (it lasts through the rest).
 - On PC, hovering over a note highlights what a click will pick.
 - Removed notes count as "wrong extra notes" in the Fixes log.
 - **Tunings**: Standard, Drop D, half-step down, whole-step down, Drop C, or Custom (set each string)
