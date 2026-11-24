@@ -11,7 +11,7 @@ import { transcribe, preloadTranscriber, cancelTranscription, startStream } from
 import { onsetEvents, estimateTempo, phaseFor, detectMeter, quantize, layoutBars, SLOTS_PER_BEAT } from './rhythm.js';
 import { nameChord } from './chords.js';
 import * as E from './edits.js';
-import { playPluck } from './pluck.js';
+import { DEFAULT_SOUND, SOUNDS, playSound, prepareSound, soundInfo } from './sounds.js';
 import { Player } from './player.js';
 import { Tuner } from './tuner.js';
 import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
@@ -424,7 +424,7 @@ async function start({ jamming = false } = {}) {
     const slotDur = 60 / bpm / SLOTS_PER_BEAT;
     const playing = song.layers.map((L, k) => ({ L, k })).filter(({ L, k }) => k !== song.active && !L.mute && L.events.length);
     const backing = new Player();
-    backing.start(ctx, playing.map(({ L }) => ({ events: L.events, volume: L.vol ?? 1, pan: LAYER_PAN[L.hue] })), bpm, 0, { meter, pulse: timeSig.pulse, at: countInEnd });
+    backing.start(ctx, playing.map(({ L }) => ({ events: L.events, volume: L.vol ?? 1, pan: LAYER_PAN[L.hue], sound: L.sound })), bpm, 0, { meter, pulse: timeSig.pulse, at: countInEnd });
     session.overdub = {
       song, layer: song.active, bpm, meter, downbeat: countInEnd, backing,
       played: playing.flatMap(({ L }) => L.events.flatMap((ev) => ev.notes.map((n) => ({ midi: n.midi, t: countInEnd + ev.slot * slotDur, dur: ev.len * slotDur })))),
@@ -1013,12 +1013,12 @@ ui.redo.addEventListener('click', redo);
 
 // ---------- hear notes (tap a note, or while editing) ----------
 let earCtx = null;
-function audition(midis) {
+function audition(midis, dur = 0.7) {
   if (session || !midis?.length || midis.some((m) => m === undefined)) return;
   setAudioSession('playback'); // iPhone: play even when the silent switch is on
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   wake(earCtx);
-  playPluck(earCtx, midis);
+  playSound(earCtx, take?.score ? layersOf(take)[take.active].sound : store.get('sound', DEFAULT_SOUND), midis, { dur });
 }
 
 // ---------- small message with an Undo button ----------
@@ -1169,6 +1169,7 @@ function playLayers() {
     events: k === take.active ? take.score.events : L.events,
     active: k === take.active,
     volume: L.mute ? 0 : L.vol ?? 1,
+    sound: L.sound,
     pan: many ? LAYER_PAN[L.hue] : 0,
   })).filter((x) => x.volume > 0 && x.events.length);
 }
@@ -1211,7 +1212,8 @@ ui.guitarToggle.addEventListener('click', () => {
 // ---------- layers ----------
 /** Make sure a take has its list of layers (a take starts as one layer, "Melody"). */
 function layersOf(t) {
-  if (!t.layers?.length) t.layers = [{ name: 'Melody', hue: 0, events: t.score.events, notes: t.notes || [], source: t.source, mute: false, vol: 1, thin: false }];
+  if (!t.layers?.length) t.layers = [{ name: 'Melody', hue: 0, events: t.score.events, notes: t.notes || [], source: t.source, mute: false, vol: 1, thin: false, sound: t.sound || store.get('sound', DEFAULT_SOUND) }];
+  for (const L of t.layers) L.sound = soundInfo(L.sound || DEFAULT_SOUND).id;
   if (!(t.active >= 0 && t.active < t.layers.length)) t.active = 0;
   return t.layers;
 }
@@ -1244,7 +1246,7 @@ function addLayer() {
   const used = new Set(take.layers.map((L) => L.hue));
   const hue = [0, 1, 2, 3].find((h) => !used.has(h));
   const name = `Layer ${take.layers.length + 1}`;
-  take.layers.push({ name, hue, events: [], notes: [], source: 'empty', mute: false, vol: 1, thin: false });
+  take.layers.push({ name, hue, events: [], notes: [], source: 'empty', sound: store.get('sound', DEFAULT_SOUND), mute: false, vol: 1, thin: false });
   take.edited = true;
   useLayer(take.layers.length - 1);
   layoutTake(take);
@@ -1269,7 +1271,7 @@ function addHarmony(steps) {
   const used = new Set(take.layers.map((L) => L.hue));
   const hue = [0, 1, 2, 3].find((h) => !used.has(h));
   const name = `${src.name} · ${steps === 2 ? '3rd' : '6th'} up`.slice(0, 24);
-  take.layers.push({ name, hue, events, notes: [], source: 'harmony', mute: false, vol: 0.8, thin: false });
+  take.layers.push({ name, hue, events, notes: [], source: 'harmony', sound: src.sound, mute: false, vol: 0.8, thin: false });
   take.edited = true;
   useLayer(take.layers.length - 1);
   layoutTake(take);
@@ -1363,6 +1365,8 @@ function syncLayerUi() {
     chips.appendChild(h);
   }
   $('layerRow').hidden = !layered;
+  $('layerSound').value = take.layers[take.active].sound;
+  $('layerSoundName').textContent = layered ? `${take.layers[take.active].name} sounds like` : 'Sounds like';
   if (layered) {
     const L = take.layers[take.active];
     if (document.activeElement !== $('layerName')) $('layerName').value = L.name;
@@ -1390,6 +1394,24 @@ $('layerName').addEventListener('change', () => {
 $('layerName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('layerName').blur(); });
 $('layerVol').addEventListener('change', () => changeLayer(take?.active, (L) => { L.vol = Number($('layerVol').value) / 100; }, { replay: true }));
 $('layerDelete').addEventListener('click', deleteLayer);
+for (const s of SOUNDS) $('layerSound').add(new Option(s.name, s.id));
+/** Give a layer another instrument, and let it be heard straight away. */
+function setSound(k, id) {
+  if (!take?.layers?.[k] || session) return;
+  store.set('sound', id); // new layers and takes start with the last one chosen
+  const wasPlaying = player.playing || jam.player.playing;
+  const events = k === take.active ? take.score.events : take.layers[k].events;
+  changeLayer(k, (L) => { L.sound = id; }, { replay: true });
+  if (wasPlaying) return;
+  scheduleSave();
+  setAudioSession('playback');
+  try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
+  wake(earCtx);
+  const taste = events.length ? events.slice(0, 4).map((e) => e.notes.map((n) => n.midi)) : [[52], [56], [59], [64]];
+  prepareSound(earCtx, id, taste.flat());
+  taste.forEach((m, i) => playSound(earCtx, id, m, { at: earCtx.currentTime + 0.12 + i * 0.36, dur: 0.34 }));
+}
+$('layerSound').addEventListener('change', () => setSound(take?.active, $('layerSound').value));
 allView = store.get('allView', '0') === '1';
 
 /**
@@ -1503,7 +1525,7 @@ function startJam(extra = null) {
   if (player.playing) player.stop(false);
   if (!$('tunerSheet').hidden) closeTuner();
   const layers = jamLayers();
-  if (extra) layers.push({ events: extra.events, volume: 1, pan: 0.3 });
+  if (extra) layers.push({ events: extra.events, volume: 1, pan: 0.3, sound: store.get('sound', DEFAULT_SOUND) });
   if (!layers.length) { $('jamStatus').textContent = 'Nothing to loop in those bars (or every layer is muted).'; return false; }
   setAudioSession('playback');
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return false; }
@@ -1592,7 +1614,7 @@ function keepRound(r) {
   const used = new Set(take.layers.map((L) => L.hue));
   const name = `Jam ${take.layers.filter((L) => /^Jam \d/.test(L.name)).length + 1}`;
   const status = `${name} is now a layer · ▶ plays it with the others`;
-  take.layers.push({ name, hue: [0, 1, 2, 3].find((h) => !used.has(h)), events: r.events.map((e) => ({ ...e, notes: e.notes.map((n) => ({ ...n })) })), notes: r.notes, source: r.source, jamId: r.id, mute: false, vol: 1, thin: false });
+  take.layers.push({ name, hue: [0, 1, 2, 3].find((h) => !used.has(h)), events: r.events.map((e) => ({ ...e, notes: e.notes.map((n) => ({ ...n })) })), notes: r.notes, source: r.source, jamId: r.id, sound: store.get('sound', DEFAULT_SOUND), mute: false, vol: 1, thin: false });
   take.edited = true;
   useLayer(take.layers.length - 1);
   layoutTake(take);
@@ -1672,6 +1694,7 @@ function renderMix() {
     + `<i class="lc-dot" aria-hidden="true"></i>`
     + `<button type="button" class="mix-name" data-mix-layer="${k}" title="${k === take.active ? 'The layer you are editing' : 'Edit this layer'}">${escHtml(L.name)}${k === take.active ? ' · editing' : ''}</button>`
     + `<button type="button" class="mini" data-mix-mute="${k}" aria-pressed="${!!L.mute}" aria-label="${L.mute ? 'Unmute' : 'Mute'} ${escHtml(L.name)}">${L.mute ? '🔇' : '🔊'}</button>`
+    + `<select class="mix-sound" data-mix-sound="${k}" aria-label="${escHtml(L.name)} instrument">${SOUNDS.map((x) => `<option value="${x.id}"${x.id === L.sound ? ' selected' : ''}>${x.name}</option>`).join('')}</select>`
     + `<input type="range" min="0" max="150" step="5" value="${Math.round((L.vol ?? 1) * 100)}" data-mix-vol="${k}" aria-label="${escHtml(L.name)} volume">`
     + '</div>').join('')
     + (Ls.length === 1 ? '<p class="mix-empty">Add a backup part with + Layer, or try + 3rd / + 6th for an instant harmony.</p>' : '');
@@ -1683,6 +1706,8 @@ $('mixList').addEventListener('click', (e) => {
   else if (b.dataset.mixMute !== undefined) changeLayer(Number(b.dataset.mixMute), (L) => { L.mute = !L.mute; }, { replay: true });
 });
 $('mixList').addEventListener('change', (e) => {
+  const snd = e.target.closest('[data-mix-sound]');
+  if (snd) { setSound(Number(snd.dataset.mixSound), snd.value); return; }
   const r = e.target.closest('[data-mix-vol]');
   if (r && take?.score) changeLayer(Number(r.dataset.mixVol), (L) => { L.vol = Number(r.value) / 100; }, { replay: true });
 });
@@ -2332,7 +2357,7 @@ function buildParts(t) {
   const used = t.layers.filter((L) => L.events.length);
   if (used.length < 2) return null;
   const nBars = Math.max(t.model.measures.length, ...used.map((L) => layoutBars(L.events, barSlots).length));
-  return used.map((L) => ({ name: L.name, hue: L.hue, events: L.events, measures: partMeasures(L.events, barSlots, nBars, t.score.key.fifths) }));
+  return used.map((L) => ({ name: L.name, hue: L.hue, sound: L.sound, events: L.events, measures: partMeasures(L.events, barSlots, nBars, t.score.key.fifths) }));
 }
 /** The page for PDF/image/SVG: every layer bold in its colour, or just the one being edited. */
 function exportModel(which) {
@@ -2357,6 +2382,7 @@ function buildSong(which = 'one') {
     bpm: t.score.tempo.bpm,
     meter: t.score.tempo.meter,
     time: timeOf(t.score.tempo),
+    sound: layersOf(t)[t.active].sound,
     key: t.score.key,
     strings,
     capo: guitar.capo,
@@ -2377,10 +2403,10 @@ function buildSong(which = 'one') {
       composer: store.get('composer', ''),
       guitar: { tuning: guitar.id, strings, capo: guitar.capo },
       take: {
-        source: t.source, notes: t.notes || [], score: t.score,
+        source: t.source, notes: t.notes || [], score: t.score, sound: layersOf(t)[t.active].sound,
         ...(t.layers?.length > 1 ? {
           active: t.active,
-          layers: t.layers.map((L, k) => ({ name: L.name, hue: L.hue, mute: !!L.mute, vol: L.vol ?? 1, thin: !!L.thin, source: L.source, notes: L.notes || [], events: k === t.active ? t.score.events : L.events })),
+          layers: t.layers.map((L, k) => ({ name: L.name, hue: L.hue, mute: !!L.mute, vol: L.vol ?? 1, thin: !!L.thin, sound: L.sound, source: L.source, notes: L.notes || [], events: k === t.active ? t.score.events : L.events })),
         } : {}),
       },
     },
@@ -2424,6 +2450,7 @@ function openProject(data, saved = null) {
     id: saved?.id || data.id || newTakeId(), // library entry, the id stored in the file, or a new entry
     createdAt: saved?.createdAt || Date.now(),
   };
+  take.sound = data.take.sound; // (older songs: the original sound)
   if (data.take.layers?.length > 1) { // a song with layers: the list is the truth, the page shows the active one
     take.layers = data.take.layers;
     take.active = data.take.active;

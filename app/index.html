@@ -264,6 +264,7 @@
       </div>
       <div id="layerBar" class="layer-bar" hidden>
         <div id="layerChips" class="layer-chips" role="group" aria-label="Layers"></div>
+        <label class="layer-sound"><span id="layerSoundName">Sounds like</span> <select id="layerSound" aria-label="Instrument"></select></label>
         <div id="layerRow" class="layer-row" hidden>
           <input id="layerName" class="layer-name" type="text" maxlength="24" aria-label="Layer name" autocomplete="off">
           <label class="layer-vol"><span>Volume</span> <input id="layerVol" type="range" min="0" max="150" step="5" aria-label="Layer volume"></label>
@@ -377,6 +378,7 @@
           <li><b>+ Layer</b> adds a part. Tap <b>Begin</b>: one bar of count-in, then the other layers play while you play your backup part. Wear headphones.</li>
           <li>The layer you're editing is <b>bold black</b>; the others are faint: sky blue, violet, arterial red, evergreen. <b>All</b> shows every layer bold; tap one to make it thin.</li>
           <li><b>🔊/🔇</b> mutes a layer; <b>Volume</b> balances them. Each layer sits a little left or right so you can tell them apart.</li>
+          <li><b>Sounds like</b> picks the instrument a layer plays back with: ten sounds, a different one for each layer if you like. MIDI and MusicXML exports carry it too.</li>
           <li><b>Jam along with this</b> loops 1, 2, 4 or 8 bars while you play freely. Tap <b>Record</b> and your part is written from the next time the loop comes round; then listen to each time round and <b>Keep</b> the best as a layer.</li>
           <li><b>+ 3rd / + 6th</b> copies the layer you're on a 3rd or a 6th higher, in the key: an instant harmony to try against the melody.</li>
           <li>Ideas: a <b>bass line</b> on the low strings (root notes on beat 1), <b>chords</b> strummed on the beat, or a simple <b>counter-melody</b> in the gaps.</li>

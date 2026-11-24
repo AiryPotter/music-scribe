@@ -2,7 +2,7 @@
 // with the plucked-string sound, and reports which note is sounding so the page can follow.
 // Practice options: slower speed, a click on every beat, and looping a stretch of bars.
 
-import { playPluck } from './pluck.js';
+import { playSound, prepareSound } from './sounds.js';
 import { clickSound } from './metronome.js';
 
 const LOOKAHEAD = 0.25; // seconds of sound scheduled ahead of the clock
@@ -20,7 +20,7 @@ export class Player {
 
   /**
    * layers: [{ events: [{ slot, len, notes:[{ midi }] }] sorted, active (the one the page follows),
-   *   volume (0–1.5), pan (−1…1) }]  (a plain events array also works, as one layer)
+   *   volume (0–1.5), pan (−1…1), sound (see sounds.js) }]  (a plain events array also works, as one layer)
    * bpm: the written tempo; fromSlot: where to start (16ths from the start of the song).
    * opts: { speed (0.25–4), click (bool), meter, pulse (slots between ticks), loop: { start, end } in slots, or null,
    *   at: audio time to start (default: right away) }
@@ -39,9 +39,22 @@ export class Player {
       : { start: Math.floor(fromSlot / SLOTS_PER_BEAT) * SLOTS_PER_BEAT, end: lastEnd };
     // one pass through the segment: notes of every layer, plus a tick on every beat if the click is on
     this.out = ctx.createGain();
-    this.out.connect(ctx.destination);
+    this.end = ctx.destination;
+    if (layers.length > 1) { // several layers at once: hold back the loudest moments instead of distorting
+      try {
+        const lim = ctx.createDynamicsCompressor();
+        lim.threshold.value = -9; lim.knee.value = 6; lim.ratio.value = 14; lim.attack.value = 0.002; lim.release.value = 0.12;
+        const trim = ctx.createGain();
+        trim.gain.value = 0.62; // (the browser's limiter also boosts)
+        lim.connect(trim).connect(ctx.destination);
+        this.end = lim;
+        this.trim = trim;
+      } catch { /* old browser */ }
+    }
+    this.out.connect(this.end);
     const items = [];
     layers.forEach((L) => {
+      prepareSound(ctx, L.sound, L.events.filter((e) => e.slot >= seg.start && e.slot < seg.end).flatMap((e) => e.notes.map((n) => n.midi)));
       let dest = this.out;
       try {
         const g = ctx.createGain();
@@ -50,7 +63,7 @@ export class Player {
         dest = g;
       } catch { /* old browser: everything in the middle */ }
       L.events.forEach((ev, i) => {
-        if (ev.slot >= seg.start && ev.slot < seg.end && (loop || ev.slot >= fromSlot)) items.push({ slot: ev.slot, ev, i: L.active ? i : undefined, dest });
+        if (ev.slot >= seg.start && ev.slot < seg.end && (loop || ev.slot >= fromSlot)) items.push({ slot: ev.slot, ev, i: L.active ? i : undefined, dest, sound: L.sound });
       });
     });
     if (click) {
@@ -99,7 +112,7 @@ export class Player {
       const it = this.items[this.next.j];
       const at = Math.max(now, this.timeOf(this.next));
       if (it.tick) this.tickSound(at, it.accent);
-      else playPluck(this.ctx, it.ev.notes.map((n) => n.midi), { at, dest: it.dest || this.out });
+      else playSound(this.ctx, it.sound, it.ev.notes.map((n) => n.midi), { at, dest: it.dest || this.out, dur: it.ev.len * this.slotDur });
       if (!this.advance(this.next)) this.nextDone = true;
     }
     while (!this.cursorDone && this.timeOf(this.cursor) <= now) {
@@ -126,7 +139,9 @@ export class Player {
     const out = this.out, ctx = this.ctx;
     try {
       out.gain.setTargetAtTime(0, ctx.currentTime, 0.03); // quick fade, no click
-      setTimeout(() => { try { out.disconnect(); } catch { /* gone */ } }, 400);
+      const trim = this.trim;
+      this.trim = null;
+      setTimeout(() => { try { out.disconnect(); trim?.disconnect(); } catch { /* gone */ } }, 400);
     } catch { /* context closed */ }
     this.onStep(-1);
     this.onEnd(finished);

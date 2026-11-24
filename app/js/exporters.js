@@ -11,6 +11,7 @@
 
 import { spell } from './keys.js';
 import { TIMES, timeInfo, timeOf } from './time.js';
+import { DEFAULT_SOUND, SOUNDS, soundInfo } from './sounds.js';
 
 const enc = new TextEncoder();
 const xmlEsc = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
@@ -74,11 +75,11 @@ export function toMusicXML(song) {
   L.push(`<encoding><software>Music Scribe</software><encoding-date>${date}</encoding-date></encoding>`);
   L.push('</identification>');
   // one part per layer (a quartet opens as four guitar parts), or one part for a single layer
-  const parts = song.parts?.length ? song.parts : [{ name: 'Guitar', measures: song.measures }];
+  const parts = song.parts?.length ? song.parts : [{ name: 'Guitar', measures: song.measures, sound: song.sound }];
   const channel = (k) => (k >= 9 ? k + 2 : k + 1); // skip MIDI channel 10 (drums)
   L.push('<part-list>' + parts.map((pt, k) => `<score-part id="P${k + 1}"><part-name>${xmlEsc(pt.name || 'Guitar')}</part-name>`
-    + `<score-instrument id="P${k + 1}-I1"><instrument-name>Acoustic Guitar</instrument-name></score-instrument>`
-    + `<midi-instrument id="P${k + 1}-I1"><midi-channel>${channel(k)}</midi-channel><midi-program>26</midi-program>${parts.length > 1 ? `<pan>${[0, -35, 35, -15][k] ?? 0}</pan>` : ''}</midi-instrument>`
+    + `<score-instrument id="P${k + 1}-I1"><instrument-name>${soundInfo(pt.sound).instrument}</instrument-name></score-instrument>`
+    + `<midi-instrument id="P${k + 1}-I1"><midi-channel>${channel(k)}</midi-channel><midi-program>${soundInfo(pt.sound).program + 1}</midi-program>${parts.length > 1 ? `<pan>${[0, -35, 35, -15][k] ?? 0}</pan>` : ''}</midi-instrument>`
     + '</score-part>').join('') + '</part-list>');
 
   const noteXml = (p, staff, voice) => {
@@ -153,7 +154,7 @@ function vlq(n) {
  */
 export function toMIDI(song) {
   const PPQ = 480, perSlot = PPQ / 4;
-  const parts = song.parts?.length ? song.parts : [{ name: song.title || 'Guitar', events: song.events }];
+  const parts = song.parts?.length ? song.parts : [{ name: song.title || 'Guitar', events: song.events, sound: song.sound }];
   const usPerBeat = Math.round(60000000 / song.bpm);
   const meta = (title) => {
     const name = enc.encode((title || 'Music Scribe').slice(0, 100));
@@ -164,7 +165,7 @@ export function toMIDI(song) {
       0, 0xff, 0x59, 0x02, (song.key?.fifths || 0) & 0xff, song.key?.mode === 'minor' ? 1 : 0, // key signature
     ];
   };
-  const noteData = (events, ch, name) => {
+  const noteData = (events, ch, name, sound) => {
     const ev = []; // [tick, order, bytes]
     for (const e of events) {
       for (const n of e.notes) {
@@ -175,7 +176,7 @@ export function toMIDI(song) {
     ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const label = name ? enc.encode(name.slice(0, 60)) : null;
     const data = label ? [0, 0xff, 0x03, ...vlq(label.length), ...label] : [];
-    data.push(0, 0xc0 | ch, 25); // program 26 (1-based): Acoustic Guitar (steel)
+    data.push(0, 0xc0 | ch, soundInfo(sound).program); // the layer's instrument
     if (parts.length > 1) data.push(0, 0xb0 | ch, 10, [64, 44, 84, 57][parts.indexOf(parts.find((p) => p.events === events))] ?? 64); // pan, like playback
     let last = 0;
     for (const [tick, , bytes] of ev) { data.push(...vlq(tick - last), ...bytes); last = tick; }
@@ -187,8 +188,8 @@ export function toMIDI(song) {
     return [0x4d, 0x54, 0x72, 0x6b, (len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff, ...all];
   };
   let tracks;
-  if (parts.length === 1) tracks = [chunk([...meta(song.title), ...noteData(parts[0].events, 0, null)])];
-  else tracks = [chunk(meta(song.title)), ...parts.map((p, k) => chunk(noteData(p.events, k >= 9 ? k + 1 : k, p.name)))];
+  if (parts.length === 1) tracks = [chunk([...meta(song.title), ...noteData(parts[0].events, 0, null, parts[0].sound)])];
+  else tracks = [chunk(meta(song.title)), ...parts.map((p, k) => chunk(noteData(p.events, k >= 9 ? k + 1 : k, p.name, p.sound)))];
   const type = parts.length === 1 ? 0 : 1;
   const header = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, type, 0, tracks.length, (PPQ >> 8) & 0xff, PPQ & 0xff];
   return new Blob([new Uint8Array([...header, ...tracks.flat()])], { type: 'audio/midi' });
@@ -315,6 +316,7 @@ export function validateProject(data) {
       hues.add(hue);
       return {
         name: String(L.name || `Layer ${k + 1}`).slice(0, 24), hue,
+        sound: SOUNDS.some((x) => x.id === L.sound) ? L.sound : DEFAULT_SOUND,
         mute: !!L.mute, thin: !!L.thin, vol: num(L.vol) ? Math.max(0, Math.min(1.5, L.vol)) : 1,
         source: String(L.source || 'project').slice(0, 20), notes: cleanNotes(L.notes), events: cleanEvents(L.events),
       };
@@ -331,6 +333,7 @@ export function validateProject(data) {
     guitar: { tuning: String(g.tuning || 'standard'), strings: Array.isArray(g.strings) ? g.strings.filter(int).slice(0, 6) : [], capo: Number(g.capo) || 0 },
     take: {
       source: String(data.take.source || 'project').slice(0, 20),
+      sound: SOUNDS.some((x) => x.id === data.take.sound) ? data.take.sound : DEFAULT_SOUND,
       notes,
       score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, time: timeOf({ meter, time: t.time }), offset: Number(t.offset) || 0 }, ...(int(data.take.score.bars) && data.take.score.bars > 0 && data.take.score.bars <= 2000 ? { bars: data.take.score.bars } : {}), events: layers ? layers[active].events : events, ...cleanKey(data.take.score.key) },
       ...(layers ? { layers, active } : {}),

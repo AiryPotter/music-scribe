@@ -1229,3 +1229,10 @@ button.layer-chip:disabled { opacity: .45; cursor: default; }
 .jam-panel .hint { margin: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .jam-rec:not(.on) { color: #e98a7a; border-color: #e98a7a; } }
 :root[data-theme="dark"] .jam-rec:not(.on) { color: #e98a7a; border-color: #e98a7a; }
+
+/* ---------- instruments ---------- */
+.layer-sound span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer-sound select { flex: 0 1 260px; width: auto; }
+.layer-sound { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 15px; font-weight: 700; }
+.layer-sound select, .mix-sound { font: inherit; font-size: 15px; min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); min-width: 0; }
+.mix-sound { grid-column: 1 / -1; width: 100%; }

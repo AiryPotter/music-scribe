@@ -128,6 +128,9 @@ Tap **🐞 Bug** (top of the page, or "Report a bug" in the Guide). Write what w
 ## Jam: loop the melody and play along
 **🔁 Jam along with this** (above the manuscript) loops **1, 2, 4 or 8 bars** of your song, from any bar, while you play freely; nothing is written. Tap **● Record** and writing starts the next time the loop comes round, without the loop stopping. Keep going as long as you like: **each time round is written separately**. Then **Hear** each one with the melody and **Keep** the best as a new layer (Undo takes it away). Rounds you don't keep are dropped when you jam again, move the loop or close the app. Only notes are kept, never audio. Headphones work best.
 
+## Instruments
+**Sounds like** (above the manuscript, and per layer in the wide-screen mixer) sets what plays the notes: Harpsichord (original), Acoustic guitar, Heavy guitar, Bass guitar, Grand piano, Electric piano, Organ, Synth lead, Dreamy strings or Marimba. Every layer can have its own. All ten are generated in the app (no recordings, nothing downloaded, works offline). It changes playback, Jam and tapped notes; MIDI, MusicXML and Guitar Pro exports carry the matching instrument. Saved with the song; older songs keep the original sound.
+
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 
