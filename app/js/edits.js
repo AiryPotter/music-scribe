@@ -127,6 +127,33 @@ export function duplicateSpan(events, a, b) {
   events.sort((x, y) => x.slot - y.slot);
   for (let i = 0; i + 1 < events.length; i++) events[i].len = Math.min(events[i].len, events[i + 1].slot - events[i].slot);
 }
+/** A copy of these bars (numbers from 0, in order) put end to end, starting at slot 0. */
+export function extractBars(events, bars, barSlots, only = null) {
+  const out = [];
+  let at = 0;
+  for (let i = 0; i < bars.length;) {
+    let j = i; // bars in a row are copied as one stretch, so notes held across them stay whole
+    while (j + 1 < bars.length && bars[j + 1] === bars[j] + 1) j++;
+    const a = bars[i] * barSlots, b = (bars[j] + 1) * barSlots;
+    for (const e of events) {
+      if (only && !only.has(e)) continue;
+      const start = Math.max(e.slot, a), end = Math.min(e.slot + e.len, b);
+      if (end <= start || (only && e.slot < a)) continue;
+      out.push({ ...copyEvent(e), slot: at + start - a, len: end - start });
+    }
+    at += b - a;
+    i = j + 1;
+  }
+  return out;
+}
+/** Put copied music into new room at `at` (len slots long). In place; returns the new events. */
+export function insertClip(events, at, len, clip) {
+  insertGap(events, at, len);
+  const added = clip.map((e) => ({ ...copyEvent(e), slot: e.slot + at }));
+  events.push(...added);
+  events.sort((x, y) => x.slot - y.slot);
+  return added;
+}
 /** Cut the stretch a…b out (a note ringing into it stops at a). In place. */
 export function cutSpan(events, a, b) {
   for (let i = events.length - 1; i >= 0; i--) {

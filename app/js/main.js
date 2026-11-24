@@ -1765,6 +1765,7 @@ function closeEditor({ relayout = true } = {}) {
   const had = !!sel || picked.size > 0;
   sel = null;
   picked.clear();
+  anchor = null;
   refreshTools();
   ui.ed.hidden = true;
   document.body.classList.remove('editing');
@@ -1775,6 +1776,7 @@ function currentRefIndex() {
   return take.refs.findIndex((r) => (sel.kind === 'ev' ? r.kind === 'ev' && r.idx === sel.idx : r.kind === 'rest' && r.at === sel.at));
 }
 function nav(dir) {
+  if (!selectMode) picked.clear();
   const i = currentRefIndex();
   const next = take?.refs?.[i + dir];
   if (next) select(next);
@@ -1787,7 +1789,9 @@ function edit(fn, { listen = false, what = null } = {}) {
   const focusBefore = sel.focus;
   const restAt = sel.kind === 'rest' ? sel.at : null;
   pushHistory();
+  const had = take.score.events.length;
   sel = fn(take.score, sel) || sel;
+  if (take.score.events.length !== had) picked.clear(); // (the picked notes' places have moved)
   if (what) {
     const after = sel.kind === 'ev' ? take.score.events[sel.idx] : null;
     const changed = JSON.stringify(before) !== JSON.stringify(after) || restAt !== null;
@@ -1881,10 +1885,126 @@ ui.score.addEventListener('click', (e) => {
   const r = e.target.closest?.('[data-ref]');
   if (!r || !take?.refs || session) return;
   const ref = take.refs[Number(r.dataset.ref)];
-  if (selectMode && ref?.kind === 'ev') { togglePick(ref.idx); return; }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey) { pickBar(ref); return; }
+  if (e.shiftKey) { pickRange(ref); return; }
+  if (e.ctrlKey || e.metaKey) { if (ref?.kind === 'ev') pickAlso(ref.idx); return; }
+  if (selectMode && ref?.kind === 'ev') { anchor = ref.idx; togglePick(ref.idx); return; }
   picked.clear();
+  anchor = ref?.kind === 'ev' ? ref.idx : null;
   select(ref);
 });
+// (Shift+click would otherwise also select the page's text)
+ui.score.addEventListener('mousedown', (e) => { if ((e.shiftKey || e.ctrlKey || e.metaKey) && e.target.closest?.('[data-ref]')) e.preventDefault(); });
+
+// ---------- picking with the keyboard held: Ctrl = also this note, Shift = everything in between, Ctrl+Shift = the whole bar ----------
+let anchor = null; // where a Shift+click range starts: the last note clicked without Shift
+/** Start from the note being edited, if nothing is picked yet. */
+function keepCurrent() { if (!picked.size && sel?.kind === 'ev') picked.add(sel.idx); }
+function pickAlso(idx) {
+  keepCurrent();
+  anchor = idx;
+  togglePick(idx);
+}
+function pickRange(ref) {
+  // clicking a rest: up to the note nearest it
+  const idx = ref?.kind === 'ev' ? ref.idx : take.score.events.findLastIndex((e) => e.slot <= (ref?.at ?? 0));
+  if (idx < 0) return;
+  if (anchor === null || !take.score.events[anchor]) anchor = sel?.kind === 'ev' ? sel.idx : idx;
+  picked.clear();
+  for (let i = Math.min(anchor, idx); i <= Math.max(anchor, idx); i++) picked.add(i);
+  select({ kind: 'ev', idx });
+}
+function pickBar(ref) {
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
+  const bar = Math.floor((ref.kind === 'ev' ? take.score.events[ref.idx].slot : ref.at) / barSlots);
+  const inBar = take.score.events.map((e, i) => i).filter((i) => Math.floor(take.score.events[i].slot / barSlots) === bar);
+  if (!inBar.length) { showToast('That bar has no notes to pick.'); return; }
+  if (!picked.size && sel?.kind === 'ev' && Math.floor(take.score.events[sel.idx].slot / barSlots) !== bar) keepCurrent();
+  if (picked.size && inBar.every((i) => picked.has(i))) { // all of it is picked: take it off again
+    inBar.forEach((i) => picked.delete(i));
+    const left = [...picked].pop();
+    if (left === undefined) { closeEditor(); return; }
+    select({ kind: 'ev', idx: left });
+    return;
+  }
+  inBar.forEach((i) => picked.add(i));
+  anchor = inBar[0];
+  select({ kind: 'ev', idx: inBar[0] });
+}
+function pickAll() {
+  const n = take.score.events.length;
+  if (!n) return;
+  for (let i = 0; i < n; i++) picked.add(i);
+  anchor = 0;
+  select({ kind: 'ev', idx: 0 });
+}
+
+// ---------- copy, cut and paste ----------
+let clip = null; // { bars, meter, take, hue, layers: { [hue]: events }, whole }
+/** Is every note of the touched bars picked? Then it's those bars, in every layer; else just the notes. */
+function wholeBars() {
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, bars = new Set(barList() || []), t = new Set(targets());
+  return bars.size > 0 && take.score.events.every((e, i) => !bars.has(Math.floor(e.slot / barSlots)) || t.has(i));
+}
+const copyText = (c, verb) => (c.whole ? `${verb} ${c.bars === 1 ? 'the bar' : `${c.bars} bars`}${Object.keys(c.layers).length > 1 ? ' (every layer)' : ''}` : `${verb} ${c.count} note${c.count === 1 ? '' : 's'}`);
+function copyPicked({ quiet = false } = {}) {
+  const t = targets(), bars = barList();
+  if (!t.length || !bars) return false;
+  syncLayer();
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, whole = wholeBars(), A = layersOf(take)[take.active];
+  const layers = {};
+  if (whole) take.layers.forEach((L) => { layers[L.hue] = E.extractBars(L.events, bars, barSlots); });
+  else layers[A.hue] = E.extractBars(take.score.events, bars, barSlots, new Set(t.map((i) => take.score.events[i])));
+  clip = { bars: bars.length, meter: take.score.tempo.meter, take: take.id, hue: A.hue, layers, whole, count: t.length };
+  if (!quiet) showToast(`${copyText(clip, 'Copied')} · Ctrl+V puts ${clip.whole && clip.bars === 1 ? 'it' : 'them'} in after the bar you tap`);
+  return true;
+}
+function cutPicked() {
+  const bars = barList();
+  if (!targets().length || writing()) return;
+  const whole = wholeBars();
+  if (whole && bars.length >= take.model.measures.length) { showToast('That’s the whole song. Use Clear Thy Manuscript instead.'); return; }
+  if (!copyPicked({ quiet: true })) return;
+  if (whole) changeBars('delete'); else removeTargets();
+  showToast(copyText(clip, 'Cut'), undo);
+}
+/** New bars after the tapped bar (or at the end), holding what was copied. */
+function pasteClip() {
+  if (!clip) { showToast('Nothing copied yet. Select some notes and press Ctrl+C.'); return; }
+  if (writing() || !take.model) return;
+  if (clip.meter !== take.score.tempo.meter) { showToast(`That was copied from a ${clip.meter}/4 song, so it doesn’t fit these ${take.score.tempo.meter}/4 bars.`); return; }
+  syncLayer();
+  pushHistory();
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, total = take.model.measures.length, bars = barList();
+  const at = (bars ? bars[bars.length - 1] + 1 : total) * barSlots, len = clip.bars * barSlots;
+  const A = layersOf(take)[take.active];
+  let added = [];
+  for (const L of take.layers) {
+    // bars copied from this song go back into their own layers; anything else goes into the one being edited
+    const music = clip.whole && clip.take === take.id ? clip.layers[L.hue] : L === A ? clip.layers[clip.hue] : null;
+    const put = E.insertClip(L.events, at, len, music || []);
+    if (L === A) added = put;
+  }
+  setBars(total + clip.bars);
+  take.edited = true;
+  closeEditor({ relayout: false });
+  added.forEach((ev) => picked.add(take.score.events.indexOf(ev)));
+  if (picked.size) { const idx = Math.min(...picked); anchor = idx; sel = { kind: 'ev', idx, focus: take.score.events[idx].notes.length - 1 }; ui.ed.hidden = false; document.body.classList.add('editing'); }
+  layoutTake(take);
+  refreshTools();
+  showToast(copyText(clip, 'Pasted'), undo);
+}
+/** Ctrl+C / X / V / D / A on the manuscript. Returns true when it was one of these. */
+function clipKey(key) {
+  if (!take?.score || session || writing() || exportSheet.isOpen || bugs.isOpen || !$('fixesSheet').hidden || !$('tunerSheet').hidden) return false;
+  if (key === 'a') { pickAll(); return true; }
+  if (key === 'v') { pasteClip(); return true; }
+  if (!targets().length) return false;
+  if (key === 'c') { if (String(getSelection() || '')) return false; return copyPicked(); } // (selected text copies as usual)
+  if (key === 'x') { cutPicked(); return true; }
+  if (key === 'd') { changeBars('duplicate'); return true; }
+  return false;
+}
 
 // ---------- Select tool, Remove, and moving notes along the key ----------
 /** The notes an edit applies to: everything picked with the Select tool, else the note being edited. */
@@ -1926,56 +2046,64 @@ function refreshTools() {
   const rm = $('removeTool');
   rm.disabled = !n || !!session;
   rm.textContent = n > 1 ? `Remove ${n} notes` : 'Remove note';
-  const span = barSpan(), off = !take?.model || !!session || writing();
-  const many = span && span.n > 1 ? `${span.n} bars` : 'bar';
-  const which = span ? (span.n > 1 ? `bars ${span.first + 1} to ${span.first + span.n}` : `bar ${span.first + 1}`) : '';
+  const span = barList(), off = !take?.model || !!session || writing();
+  const many = span && span.length > 1 ? `${span.length} bars` : 'bar';
+  const which = span ? `${span.length > 1 ? 'bars' : 'bar'} ${span.map((x) => x + 1).join(', ')}` : '';
   $('addBarTool').disabled = off;
-  $('addBarTool').title = span ? `Add an empty bar after ${which}` : 'Add an empty bar at the end';
+  $('addBarTool').title = span ? `Add an empty bar after bar ${span[span.length - 1] + 1}` : 'Add an empty bar at the end';
   $('dupBarTool').disabled = off || !span;
   $('dupBarTool').textContent = `Duplicate ${many}`;
-  $('dupBarTool').title = span ? `Repeat ${which} straight after` : 'Tap a note or rest in the bar first';
-  $('delBarTool').disabled = off || !span || span.n >= take.model.measures.length;
+  $('dupBarTool').title = span ? `Repeat ${which} straight after (Ctrl+D)` : 'Tap a note or rest in the bar first';
+  $('delBarTool').disabled = off || !span || span.length >= take.model.measures.length;
   $('delBarTool').textContent = `Delete ${many}`;
   $('delBarTool').title = span ? `Take ${which} out of every layer` : 'Tap a note or rest in the bar first';
 }
-/** The bars the tapped or picked notes are in: { first, n } (counting from 0), or null. */
-function barSpan() {
+/** The bars the tapped or picked notes are in, in order (counting from 0), or null. */
+function barList() {
   if (!take?.score || !take.model) return null;
   const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
   const slots = picked.size ? [...picked].map((i) => take.score.events[i]?.slot).filter((s) => s !== undefined)
     : sel?.kind === 'ev' ? [take.score.events[sel.idx]?.slot ?? 0] : sel?.kind === 'rest' ? [sel.at] : [];
   if (!slots.length) return null;
-  const first = Math.floor(Math.min(...slots) / barSlots);
-  return { first, n: Math.floor(Math.max(...slots) / barSlots) - first + 1 };
+  return [...new Set(slots.map((s) => Math.floor(s / barSlots)))].sort((x, y) => x - y);
+}
+/** Empty bars at the end aren't in any note, so the song remembers how long it is. */
+function setBars(bars) {
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
+  const end = Math.max(0, ...take.layers.flatMap((L) => L.events).map((e) => e.slot + e.len));
+  if (Math.ceil(end / barSlots) < bars) take.score.bars = bars; else delete take.score.bars;
 }
 /** Add, repeat or take out whole bars, in every layer so they stay lined up (undo-able). */
 function changeBars(what) {
   if (!take?.score || !take.model || session || writing()) return;
-  const span = barSpan();
-  if (what !== 'add' && !span) return;
+  const list = barList();
+  if (what !== 'add' && !list) return;
+  const row = !list || list[list.length - 1] - list[0] + 1 === list.length; // are they next to each other?
   const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, total = take.model.measures.length;
-  if (what === 'delete' && span.n >= total) return;
+  if (what === 'delete' && list.length >= total) return;
   syncLayer();
   pushHistory();
-  const a = span ? span.first * barSlots : total * barSlots;
-  const n = what === 'add' ? 1 : span.n;
-  const b = span ? a + span.n * barSlots : a;
+  const n = what === 'add' ? 1 : list.length;
+  const a = (list ? list[0] : total) * barSlots;
+  const b = (list ? list[list.length - 1] + 1 : total) * barSlots;
   for (const L of layersOf(take)) {
     if (what === 'add') E.insertGap(L.events, b, barSlots);
-    else if (what === 'duplicate') E.duplicateSpan(L.events, a, b);
-    else E.cutSpan(L.events, a, b);
+    else if (what === 'duplicate') { if (row) E.duplicateSpan(L.events, a, b); else E.insertClip(L.events, b, n * barSlots, E.extractBars(L.events, list, barSlots)); }
+    else for (const bar of [...list].reverse()) E.cutSpan(L.events, bar * barSlots, (bar + 1) * barSlots);
   }
-  // empty bars at the end aren't in any note, so remember how long the song is
   const bars = total + (what === 'delete' ? -n : n);
-  const end = Math.max(0, ...take.layers.flatMap((L) => L.events).map((e) => e.slot + e.len));
-  if (Math.ceil(end / barSlots) < bars) take.score.bars = bars; else delete take.score.bars;
+  setBars(bars);
   take.edited = true;
   closeEditor({ relayout: false });
   layoutTake(take);
   // go on from the new bar (so Duplicate again repeats the copy, and an empty bar is ready for notes)
   const at = what === 'delete' ? Math.min(a, (bars - 1) * barSlots) : b;
   const ref = take.refs.find((r) => (r.kind === 'ev' ? take.score.events[r.idx].slot >= at && take.score.events[r.idx].slot < at + barSlots : r.at >= at && r.at < at + barSlots));
-  if (ref && what !== 'delete') select(ref);
+  if (ref && what !== 'delete') {
+    anchor = ref.kind === 'ev' ? ref.idx : null;
+    if (what === 'duplicate' && n > 1) take.score.events.forEach((ev, i) => { if (ev.slot >= at && ev.slot < at + n * barSlots) picked.add(i); });
+    select(ref);
+  }
   refreshTools();
   const text = what === 'add' ? `Bar ${at / barSlots + 1} added` : what === 'duplicate' ? (n > 1 ? `${n} bars duplicated` : 'Bar duplicated') : (n > 1 ? `${n} bars deleted` : 'Bar deleted');
   showToast(`${text}${take.layers.length > 1 ? ' in every layer' : ''}`, undo);
@@ -2122,6 +2250,7 @@ document.addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
   if (mod && !typing && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); return; }
   if (mod && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && !typing && !e.shiftKey && !e.altKey && 'acdvx'.includes(e.key.toLowerCase()) && e.key.length === 1 && clipKey(e.key.toLowerCase())) { e.preventDefault(); return; }
   if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && $('takesSheet').hidden && $('fixesSheet').hidden && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
   if (!sel || typing || mod || e.altKey) return;
   if (e.key === 'Enter' && (e.target.tagName === 'BUTTON' || sel.kind !== 'rest')) return;
