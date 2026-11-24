@@ -122,6 +122,9 @@ Mozart now writes the take out **while you play**: about once a second the newes
 ## Report a bug
 Tap **🐞 Bug** (top of the page, or "Report a bug" in the Guide). Write what went wrong and what you were doing, add screenshots (from Photos/files, pasted with Ctrl+V, or on a PC **Capture the screen**), and choose whether to include a picture of the manuscript and the app/device details (app version, browser, screen size, the take, layers, settings and any recent errors). **Save PDF** writes everything into one file, *Music Scribe bug report <date time>.pdf*; **Share…** sends it from a phone. Nothing leaves your device unless you share it, and what you've typed is kept as a draft until you tap **New report**.
 
+## Jam: loop the melody and play along
+**🔁 Jam along with this** (above the manuscript) loops **1, 2, 4 or 8 bars** of your song, from any bar, while you play freely; nothing is written. Tap **● Record** and writing starts the next time the loop comes round, without the loop stopping. Keep going as long as you like: **each time round is written separately**. Then **Hear** each one with the melody and **Keep** the best as a new layer (Undo takes it away). Rounds you don't keep are dropped when you jam again, move the loop or close the app. Only notes are kept, never audio. Headphones work best.
+
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 

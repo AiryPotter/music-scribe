@@ -25,7 +25,7 @@ export class Player {
    * opts: { speed (0.4–1), click (bool), meter, loop: { start, end } in slots, or null,
    *   at: audio time to start (default: right away) }
    */
-  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, loop = null, at = null } = {}) {
+  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, loop = null, at = null, fullLoop = false } = {}) {
     this.stop(false);
     if (Array.isArray(layers) && layers.length && !layers[0]?.events) layers = [{ events: layers, active: true }];
     layers = (layers || []).filter((L) => L.events?.length);
@@ -35,7 +35,7 @@ export class Player {
     fromSlot = Math.max(0, Math.min(fromSlot, Math.max(...all.map((e) => e.slot))));
     const barSlots = meter * SLOTS_PER_BEAT;
     const seg = loop
-      ? { start: loop.start, end: Math.min(loop.end, Math.max(loop.start + 1, lastEnd)) }
+      ? { start: loop.start, end: fullLoop ? loop.end : Math.min(loop.end, Math.max(loop.start + 1, lastEnd)) } // fullLoop: keep the silence at the end (whole bars)
       : { start: Math.floor(fromSlot / SLOTS_PER_BEAT) * SLOTS_PER_BEAT, end: lastEnd };
     // one pass through the segment: notes of every layer, plus a tick on every beat if the click is on
     this.out = ctx.createGain();

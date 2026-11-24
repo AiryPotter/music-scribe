@@ -18,6 +18,7 @@ import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
 import { removeClickNotes, removePlaybackNotes } from './notes-post.js';
 import * as FX from './fixlog.js';
 import { createBugReporter } from './bugreport.js';
+import { JAM_SIZES, jamSizes, defaultJamSize, nextTop, loopNotes, splitRounds } from './jam.js';
 
 // the last few errors, for bug reports (they stay on this device unless a report is shared)
 const recentErrors = [];
@@ -303,8 +304,10 @@ const limitText = REC_LIMIT >= 120 ? `${Math.round(REC_LIMIT / 60)}-minute` : `$
 let limitTimers = [];
 let hitLimit = false;
 
-async function start() {
+async function start({ jamming = false } = {}) {
   if (busy) return;
+  if (!jamming) stopJam(); // Begin is its own recording
+  jam.holding = jamming;   // (opening the mic closes the editor, which must not stop the loop)
   busy = true;
   ui.record.disabled = true;
   if (!$('tunerSheet').hidden) closeTuner();
@@ -325,6 +328,7 @@ async function start() {
     session?.close?.();
     session = null;
     busy = false;
+    jam.holding = false;
     ui.record.disabled = false;
     mozart.set('asleep');
     const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
@@ -340,8 +344,11 @@ async function start() {
   if (session.ctx.state !== 'running') ui.liveFret.textContent = 'Tap anywhere to start listening';
 
   // a song with more than one layer: record into the layer being edited, with the others playing
-  const song = take?.score && take.layers?.length > 1 ? take : null;
-  if (song) {
+  const jamSong = jamming ? take : null; // recording over the loop: the song stays as it is
+  const song = !jamSong && take?.score && take.layers?.length > 1 ? take : null;
+  if (jamSong) {
+    closeEditor();
+  } else if (song) {
     syncLayer(song);
     pushHistory();
     closeEditor();
@@ -370,11 +377,26 @@ async function start() {
   });
 
   const ctx = session.ctx;
-  const bpm = song ? song.score.tempo.bpm : clampBpm(ui.bpm.value);
-  const meter = song ? song.score.tempo.meter : ui.meterSel.value === 'auto' ? 4 : Number(ui.meterSel.value);
+  const bpm = (song || jamSong) ? (song || jamSong).score.tempo.bpm : clampBpm(ui.bpm.value);
+  const meter = (song || jamSong) ? (song || jamSong).score.tempo.meter : ui.meterSel.value === 'auto' ? 4 : Number(ui.meterSel.value);
   countInEnd = 0;
   let clickInfo = null;
-  if (ui.click.checked || song) { // a new layer always gets a one-bar count-in, so it lines up with the others
+  if (jamSong) {
+    // the loop plays on another audio clock: find the offset, then start writing at its next top
+    const diffs = [];
+    for (let i = 0; i < 9; i++) { diffs.push(ctx.currentTime - earCtx.currentTime); await new Promise((r) => setTimeout(r, 12)); }
+    const offset = diffs.sort((a, b) => a - b)[4];
+    const p = jam.player;
+    if (!p.playing) { // stopped while the microphone was opening
+      jam.holding = false;
+      session.jam = { cancelled: true };
+    } else {
+      const top = nextTop(p.t0, p.cycleDur, earCtx.currentTime) + offset;
+      countInEnd = top;
+      clickLag = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.005;
+      session.jam = { song: jamSong, loop: { ...jam.loop }, bpm, meter, top, slotDur: 60 / bpm / SLOTS_PER_BEAT, layers: jamLayers().map((L) => ({ events: L.events })), out: earCtx.outputLatency || 0 };
+    }
+  } else if (ui.click.checked || song) { // a new layer always gets a one-bar count-in, so it lines up with the others
     const countOnly = !ui.click.checked;
     metro = new Metronome(ctx, {
       bpm, meter, leak: session.leak || null, beats: countOnly ? meter : 0,
@@ -398,13 +420,13 @@ async function start() {
       played: playing.flatMap(({ L }) => L.events.flatMap((ev) => ev.notes.map((n) => ({ midi: n.midi, t: countInEnd + ev.slot * slotDur, dur: ev.len * slotDur })))),
     };
   }
-  if (session.play) session.play(countInEnd || ctx.currentTime + 0.3, clickInfo ? bpm : 100);
+  if (session.play) session.play(countInEnd || ctx.currentTime + 0.3, clickInfo || jamSong ? bpm : 100);
 
   updateUndoUi();
   ui.record.classList.add('on');
   ui.record.setAttribute('aria-pressed', 'true');
   ui.recordLabel.textContent = 'Cease';
-  setStatus(song ? `Recording ${song.layers[song.active].name} with the other layers · ♩=${Math.round(bpm)} · count-in…`
+  setStatus(jamSong ? 'Jam: recording from the next time round…' : song ? `Recording ${song.layers[song.active].name} with the other layers · ♩=${Math.round(bpm)} · count-in…`
     : clickInfo ? `Recording with the metronome · ♩=${bpm}` : 'Recording · live preview');
   lastSound = ctx.currentTime;
   mozart.set('idle');
@@ -417,6 +439,8 @@ async function start() {
   ];
   scheduleRender();
   loop();
+  jam.holding = false;
+  if (session.jam?.cancelled) stop(); else if (session.jam) syncJam();
 }
 
 async function stop() {
@@ -435,6 +459,7 @@ async function stop() {
   try { rec = await recorder.stop(); } catch { rec = null; }
   const clickInfo = session.clickInfo;
   const overdub = session.overdub || null;
+  const jamRec = session.jam || null;
   clearInterval(session.feedTimer);
   const stream = session.stream || null;
   if (overdub) overdub.stream = stream;
@@ -457,12 +482,19 @@ async function stop() {
   if (!rec || rec.samples.length < rec.sampleRate * 0.5) {
     mozart.set('asleep');
     setStatus('Live preview');
-    if (overdub && take === overdub.song) layoutTake(take);
+    if ((overdub && take === overdub.song) || (jamRec && take)) layoutTake(take);
     stream?.cancel();
     scheduleRender();
     return;
   }
   const rel = (t) => t - rec.startTime;
+  if (jamRec) {
+    stopJam();
+    if (jamRec.cancelled) { stream?.cancel(); if (take?.score) layoutTake(take); return; }
+    const live = notes.filter((n) => n.end).map((n) => ({ midi: n.midi, start: rel(n.start), end: rel(n.end), amp: 0.6 }));
+    await analyzeJam(jamRec, rec, stream, (jamRec.out || ctx.outputLatency || 0) + (ctx.baseLatency || 0), live);
+    return;
+  }
   if (overdub) {
     const live = notes.filter((n) => n.end).map((n) => ({ midi: n.midi, start: rel(n.start), end: rel(n.end), amp: 0.6 }));
     await analyzeLayer(overdub, rec, clickInfo, latency, live);
@@ -820,7 +852,7 @@ function scheduleRender() {
       return;
     }
     const focusRef = ui.score.contains(document.activeElement) ? document.activeElement.dataset?.ref : null;
-    if (take?.model && !session) {
+    if (take?.model && (!session || session.jam)) {
       renderScore(ui.score, take.model);
     } else {
       setNameKey(0);
@@ -834,7 +866,7 @@ function scheduleRender() {
       if (again) { ui.score.querySelectorAll('.hit[tabindex="0"]').forEach((h) => h.setAttribute('tabindex', '-1')); again.setAttribute('tabindex', '0'); again.focus({ preventScroll: true }); }
     }
     const page = ui.score.parentElement;
-    if (session) page.scrollTop = page.scrollHeight;
+    if (session && !session.jam) page.scrollTop = page.scrollHeight;
     ui.exportBtn.disabled = !(take?.model && !session);
     ui.play.disabled = ui.exportBtn.disabled;
     $('practice').hidden = ui.play.disabled;
@@ -1088,7 +1120,12 @@ const player = new Player({
     if (!session && !busy) mozart.set('asleep');
   },
 });
-function stopPlayback() { if (player.playing) player.stop(false); }
+// Jam: loops some bars while you play along (and can record you); see the Jam section below
+const jam = { player: new Player({ onStep: (i) => showPlayhead(i) }), size: 0, from: 1, loop: null, rounds: [], song: null, holding: false, timer: 0, hearing: null };
+function stopPlayback() {
+  if (player.playing) player.stop(false);
+  if (!jam.holding && !session) stopJam();
+}
 /** What ▶ plays: every layer that isn't muted, each at its volume and place left/right. */
 function playLayers() {
   if (!take?.score) return [];
@@ -1101,6 +1138,7 @@ function playLayers() {
   })).filter((x) => x.volume > 0 && x.events.length);
 }
 function togglePlay() {
+  if (!session) stopJam();
   if (!take?.score || session) return;
   if (!take.layers?.some((L, k) => (k === take.active ? take.score.events : L.events).length) && !take.score.events.length) return;
   if (player.playing) { // pause: remember where we were
@@ -1227,12 +1265,15 @@ function changeLayer(k, fn, { replay = false } = {}) {
   const L = take?.layers?.[k];
   if (!L) return;
   fn(L);
+  const again = jam.player.playing && !session && !jam.hearing; // keep the loop going with the new mix
+  if (again) { stopJam(); layoutTake(take, { quiet: true }); scheduleSave(); startJam(); return; }
   if (replay && player.playing) { const at = player.position; stopPlayback(); resumeFrom = at; togglePlay(); return; }
   layoutTake(take, { quiet: true });
   scheduleSave();
 }
 function syncLayerUi() {
   renderMix();
+  syncJam();
   const bar = $('layerBar');
   const has = !!take?.score && !session;
   bar.hidden = !has;
@@ -1373,6 +1414,188 @@ async function analyzeLayer(od, rec, click, latency, live) {
   mozart.say('Bravo!');
   setTimeout(() => { if (!session && take === song) mozart.set('asleep'); }, 2500);
 }
+
+// ---------- Jam: loop the melody, play along, record when ready, keep the best time round ----------
+function songBars() {
+  if (!take?.score) return 0;
+  const end = Math.max(0, ...layersOf(take).flatMap((L, k) => (k === take.active ? take.score.events : L.events)).map((e) => e.slot + e.len));
+  return Math.ceil(end / (take.score.tempo.meter * SLOTS_PER_BEAT));
+}
+/** What the loop plays: every layer that isn't muted. */
+function jamLayers() {
+  return playLayers().filter((L) => L.events.some((e) => e.slot >= jam.loop.start && e.slot < jam.loop.end)); // (the player picks out the bars, so the cursor keeps its place)
+}
+/** Keep the loop's size and place sensible for the song on the page. */
+function fitJam() {
+  const bars = songBars();
+  if (jam.song !== take) { jam.song = take; jam.size = 0; jam.from = 1; jam.rounds = []; }
+  if (!bars) return 0;
+  if (!jamSizes(bars).includes(jam.size)) jam.size = defaultJamSize(bars);
+  jam.from = Math.max(1, Math.min(jam.from, Math.max(1, bars - jam.size + 1)));
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
+  jam.loop = { start: (jam.from - 1) * barSlots, end: (jam.from - 1 + jam.size) * barSlots };
+  return bars;
+}
+function syncJam() {
+  const rec = !!session?.jam;
+  const bars = take?.score && !writing() && (!session || rec) ? fitJam() : 0;
+  $('jamBar').hidden = !bars;
+  if (!bars) return;
+  const on = jam.player.playing && !jam.hearing;
+  const ok = jamSizes(bars);
+  $('jamSizes').innerHTML = JAM_SIZES.map((n) => `<button type="button" class="ed-btn seg${n === jam.size ? ' on' : ''}" data-size="${n}" aria-pressed="${n === jam.size}"${ok.includes(n) && !rec ? '' : ' disabled'}>${n}</button>`).join('') + `<span class="jam-label">bar${jam.size === 1 ? '' : 's'}</span>`;
+  $('jamFrom').textContent = String(jam.from);
+  $('jamPrev').disabled = rec || jam.from <= 1;
+  $('jamNext').disabled = rec || jam.from + jam.size > bars;
+  $('jamPlay').textContent = on ? '■ Stop loop' : '▶ Start loop';
+  $('jamPlay').hidden = rec;
+  $('jamRec').textContent = rec ? '■ Stop and write it out' : '● Record';
+  $('jamRec').classList.toggle('on', rec);
+  const full = layersOf(take).length >= MAX_LAYERS;
+  $('jamRec').disabled = !rec && (full || busy);
+  if (!rec && !jam.rounds.length) $('jamStatus').textContent = full ? 'This song already has 4 layers. Delete one to record another part.' : on ? 'Play along. Tap Record when you’re ready: it starts the next time the loop comes round.' : 'Headphones work best.';
+  renderRounds();
+}
+function renderRounds() {
+  const full = !take?.score || layersOf(take).length >= MAX_LAYERS;
+  for (const r of jam.rounds) r.kept = !!take?.layers?.some((L) => L.jamId === r.id); // (Undo can take a kept one away)
+  $('jamRounds').innerHTML = session ? '' : jam.rounds.map((r, i) => `<li${r.kept ? ' class="kept"' : ''}>
+    <strong>Round ${r.round}</strong><small>${r.noteCount} note${r.noteCount === 1 ? '' : 's'}${r.partial ? ' · not finished' : ''}</small>
+    <button type="button" class="ed-btn" data-hear="${i}" aria-pressed="${jam.hearing === r}">${jam.hearing === r ? '■ Stop' : '▶ Hear it'}</button>
+    <button type="button" class="ed-btn primary" data-keep="${i}"${full || r.kept ? ' disabled' : ''}>${r.kept ? 'Kept ✓' : 'Keep'}</button></li>`).join('');
+}
+function startJam(extra = null) {
+  if (!take?.score || session || writing() || !fitJam()) return false;
+  if (player.playing) player.stop(false);
+  if (!$('tunerSheet').hidden) closeTuner();
+  const layers = jamLayers();
+  if (extra) layers.push({ events: extra.events, volume: 1, pan: 0.3 });
+  if (!layers.length) { $('jamStatus').textContent = 'Nothing to loop in those bars (or every layer is muted).'; return false; }
+  setAudioSession('playback');
+  try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return false; }
+  wake(earCtx);
+  jam.hearing = extra;
+  jam.player.start(earCtx, layers, take.score.tempo.bpm, jam.loop.start, { click: practice.click, meter: take.score.tempo.meter, loop: jam.loop, fullLoop: true });
+  clearInterval(jam.timer);
+  jam.timer = setInterval(showJamPos, 150);
+  return true;
+}
+function stopJam() {
+  clearInterval(jam.timer);
+  const was = jam.player.playing;
+  jam.player.stop(false);
+  jam.hearing = null;
+  $('jamPos').textContent = '';
+  if (was) syncJam();
+}
+function showJamPos() {
+  const p = jam.player;
+  if (!p.playing) return;
+  const beats = take.score.tempo.meter, beat = p.slotDur * SLOTS_PER_BEAT;
+  const t = Math.max(0, earCtx.currentTime - p.t0), inLoop = t % p.cycleDur;
+  const where = `bar ${jam.from + Math.floor(inLoop / (beat * beats))} · beat ${Math.floor(inLoop / beat) % beats + 1}`;
+  const rec = session?.jam;
+  if (rec && !rec.cancelled) {
+    const since = session.ctx.currentTime - rec.top;
+    $('jamPos').textContent = since < 0 ? `Recording in ${Math.ceil(-since / beat)}…` : `● Round ${Math.floor(since / p.cycleDur) + 1} · ${where}`;
+    $('jamStatus').textContent = since < 0 ? 'Get ready: it starts when the loop comes round.' : 'Recording. Every time round is written separately, so just keep going.';
+  } else $('jamPos').textContent = where;
+}
+async function recordJam() {
+  if (session?.jam) { stop(); return; }
+  if (session || busy || writing() || !take?.score || layersOf(take).length >= MAX_LAYERS) return;
+  if (jam.hearing) stopJam();
+  if (!jam.player.playing && !startJam()) return;
+  jam.rounds = [];
+  $('jamStatus').textContent = 'Opening the microphone…';
+  await start({ jamming: true });
+  if (!session) { $('jamStatus').textContent = ui.liveFret.textContent; }
+}
+/** Write out what was played over the loop: one written version per time round. */
+async function analyzeJam(j, rec, stream, latency, live) {
+  const song = j.song;
+  if (take !== song) { stream?.cancel(); return; }
+  song.overdubbing = true;
+  updateUndoUi();
+  syncLayerUi();
+  scheduleRender();
+  mozart.set('squint');
+  setStatus('Mozart is writing out each time round…', true);
+  setProgress(0);
+  const rel = (t) => t - rec.startTime;
+  const top = rel(j.top) + latency, until = rec.samples.length / rec.sampleRate;
+  let result = null;
+  try {
+    const progress = (x, mode) => { if (take === song) setProgress(x, mode === 'slow'); };
+    result = stream ? await stream.finish(rec.samples, progress, {}) : await transcribe(rec.samples, rec.sampleRate, progress, {});
+  } catch (err) {
+    if (err?.name === 'AbortError') { song.overdubbing = false; rec.samples = null; return; }
+    console.warn('Accurate pass failed, using live notes', err);
+  }
+  rec.samples = null; // the recording is thrown away here: only the written notes are kept
+  song.overdubbing = false;
+  if (take === song) endProgress();
+  updateUndoUi();
+  if (take !== song) return;
+  const lowest = Math.min(38, Math.min(...tuningStrings()) + guitar.capo);
+  let got = (result?.length ? result : live).filter((n) => n.midi >= lowest);
+  got = removePlaybackNotes(got, loopNotes(j.layers, j.loop, j.slotDur, top, until, top)); // the loop heard through speakers
+  const rounds = splitRounds(got, { top, until, loop: j.loop, tempo: { bpm: j.bpm, meter: j.meter }, simple: ui.detailSel.value !== 'detailed', openStrings: tuningStrings().map((m) => m + guitar.capo) });
+  layoutTake(song, { quiet: true });
+  jam.rounds = rounds.map((r) => ({ ...r, id: newTakeId(), source: result?.length ? 'accurate' : 'live' }));
+  syncJam();
+  setStatus(rounds.length ? `${rounds.length} time${rounds.length === 1 ? '' : 's'} round written` : 'Nothing was written');
+  $('jamStatus').textContent = rounds.length ? 'Hear each one with the melody, then Keep the one you like as a new layer. The others go when you close the app or jam again.'
+    : 'No notes were heard. Check the microphone, then try again.';
+  mozart.set('bow');
+  setTimeout(() => { if (!session && take === song) mozart.set('asleep'); }, 2500);
+}
+function keepRound(r) {
+  if (!r || r.kept || !take?.score || session || writing() || layersOf(take).length >= MAX_LAYERS) return;
+  stopJam();
+  syncLayer();
+  pushHistory();
+  const used = new Set(take.layers.map((L) => L.hue));
+  const name = `Jam ${take.layers.filter((L) => /^Jam \d/.test(L.name)).length + 1}`;
+  const status = `${name} is now a layer · ▶ plays it with the others`;
+  take.layers.push({ name, hue: [0, 1, 2, 3].find((h) => !used.has(h)), events: r.events.map((e) => ({ ...e, notes: e.notes.map((n) => ({ ...n })) })), notes: r.notes, source: r.source, jamId: r.id, mute: false, vol: 1, thin: false });
+  take.edited = true;
+  useLayer(take.layers.length - 1);
+  layoutTake(take);
+  setStatus(status);
+  $('jamStatus').textContent = `${name} is kept as a new layer. Undo takes it away.`;
+}
+$('jamOpen').addEventListener('click', () => {
+  const open = $('jamPanel').hidden;
+  $('jamPanel').hidden = !open;
+  $('jamOpen').setAttribute('aria-expanded', String(open));
+  if (!open && !session) stopJam();
+  syncJam();
+});
+$('jamPlay').addEventListener('click', () => { if (jam.player.playing && !jam.hearing) stopJam(); else { if (jam.hearing) stopJam(); startJam(); } syncJam(); });
+$('jamRec').addEventListener('click', recordJam);
+function moveJam(fn) {
+  if (session) return;
+  const on = jam.player.playing && !jam.hearing;
+  stopJam();
+  fn();
+  jam.rounds = []; // (written for the old bars)
+  fitJam();
+  if (on) startJam();
+  syncJam();
+}
+$('jamSizes').addEventListener('click', (e) => { const b = e.target.closest('[data-size]'); if (b) moveJam(() => { jam.size = Number(b.dataset.size); }); });
+$('jamPrev').addEventListener('click', () => moveJam(() => { jam.from--; }));
+$('jamNext').addEventListener('click', () => moveJam(() => { jam.from++; }));
+$('jamRounds').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.keep !== undefined) { keepRound(jam.rounds[Number(b.dataset.keep)]); return; }
+  const r = jam.rounds[Number(b.dataset.hear)], same = jam.hearing === r;
+  stopJam();
+  if (!same) startJam(r);
+  syncJam();
+});
 
 // ---------- wide screens: Guide on the left; layers mixer, note editor and Thy Library on the right ----------
 const wideMq = matchMedia('(min-width: 1440px)');
@@ -2303,6 +2526,7 @@ function showTuning(r, level) {
 }
 async function openTuner() {
   if (session || busy) return;
+  stopJam();
   closeEditor();
   if (exportSheet.isOpen) exportSheet.close();
   if (!$('takesSheet').hidden) closeTakes();
