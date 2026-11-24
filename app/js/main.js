@@ -649,7 +649,7 @@ function layoutTake(t, { quiet = false } = {}) {
   // the other layers, laid out on the same bars (drawn faintly behind, or bold in the All view)
   const others = layered ? t.layers.map((L, k) => ({ L, k })).filter(({ L, k }) => k !== t.active && L.events.length) : [];
   const otherBars = others.map(({ L }) => layoutBars(L.events, barSlots));
-  const bars = layoutBars(events, barSlots, Math.max(1, ...otherBars.map((b) => b.length)));
+  const bars = layoutBars(events, barSlots, Math.max(1, t.score.bars || 0, ...otherBars.map((b) => b.length)));
   const ghosts = others.map(({ L }, j) => {
     while (otherBars[j].length < bars.length) otherBars[j].push([{ slots: barSlots, rest: true }]);
     return {
@@ -725,6 +725,7 @@ function layoutTake(t, { quiet = false } = {}) {
   }
   scheduleRender();
   if (sel) refreshEditor();
+  refreshTools();
   if (!quiet) scheduleSave();
 }
 
@@ -1419,7 +1420,7 @@ async function analyzeLayer(od, rec, click, latency, live) {
 function songBars() {
   if (!take?.score) return 0;
   const end = Math.max(0, ...layersOf(take).flatMap((L, k) => (k === take.active ? take.score.events : L.events)).map((e) => e.slot + e.len));
-  return Math.ceil(end / (take.score.tempo.meter * SLOTS_PER_BEAT));
+  return Math.max(end ? take.score.bars || 0 : 0, Math.ceil(end / (take.score.tempo.meter * SLOTS_PER_BEAT)));
 }
 /** What the loop plays: every layer that isn't muted. */
 function jamLayers() {
@@ -1925,6 +1926,59 @@ function refreshTools() {
   const rm = $('removeTool');
   rm.disabled = !n || !!session;
   rm.textContent = n > 1 ? `Remove ${n} notes` : 'Remove note';
+  const span = barSpan(), off = !take?.model || !!session || writing();
+  const many = span && span.n > 1 ? `${span.n} bars` : 'bar';
+  const which = span ? (span.n > 1 ? `bars ${span.first + 1} to ${span.first + span.n}` : `bar ${span.first + 1}`) : '';
+  $('addBarTool').disabled = off;
+  $('addBarTool').title = span ? `Add an empty bar after ${which}` : 'Add an empty bar at the end';
+  $('dupBarTool').disabled = off || !span;
+  $('dupBarTool').textContent = `Duplicate ${many}`;
+  $('dupBarTool').title = span ? `Repeat ${which} straight after` : 'Tap a note or rest in the bar first';
+  $('delBarTool').disabled = off || !span || span.n >= take.model.measures.length;
+  $('delBarTool').textContent = `Delete ${many}`;
+  $('delBarTool').title = span ? `Take ${which} out of every layer` : 'Tap a note or rest in the bar first';
+}
+/** The bars the tapped or picked notes are in: { first, n } (counting from 0), or null. */
+function barSpan() {
+  if (!take?.score || !take.model) return null;
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
+  const slots = picked.size ? [...picked].map((i) => take.score.events[i]?.slot).filter((s) => s !== undefined)
+    : sel?.kind === 'ev' ? [take.score.events[sel.idx]?.slot ?? 0] : sel?.kind === 'rest' ? [sel.at] : [];
+  if (!slots.length) return null;
+  const first = Math.floor(Math.min(...slots) / barSlots);
+  return { first, n: Math.floor(Math.max(...slots) / barSlots) - first + 1 };
+}
+/** Add, repeat or take out whole bars, in every layer so they stay lined up (undo-able). */
+function changeBars(what) {
+  if (!take?.score || !take.model || session || writing()) return;
+  const span = barSpan();
+  if (what !== 'add' && !span) return;
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, total = take.model.measures.length;
+  if (what === 'delete' && span.n >= total) return;
+  syncLayer();
+  pushHistory();
+  const a = span ? span.first * barSlots : total * barSlots;
+  const n = what === 'add' ? 1 : span.n;
+  const b = span ? a + span.n * barSlots : a;
+  for (const L of layersOf(take)) {
+    if (what === 'add') E.insertGap(L.events, b, barSlots);
+    else if (what === 'duplicate') E.duplicateSpan(L.events, a, b);
+    else E.cutSpan(L.events, a, b);
+  }
+  // empty bars at the end aren't in any note, so remember how long the song is
+  const bars = total + (what === 'delete' ? -n : n);
+  const end = Math.max(0, ...take.layers.flatMap((L) => L.events).map((e) => e.slot + e.len));
+  if (Math.ceil(end / barSlots) < bars) take.score.bars = bars; else delete take.score.bars;
+  take.edited = true;
+  closeEditor({ relayout: false });
+  layoutTake(take);
+  // go on from the new bar (so Duplicate again repeats the copy, and an empty bar is ready for notes)
+  const at = what === 'delete' ? Math.min(a, (bars - 1) * barSlots) : b;
+  const ref = take.refs.find((r) => (r.kind === 'ev' ? take.score.events[r.idx].slot >= at && take.score.events[r.idx].slot < at + barSlots : r.at >= at && r.at < at + barSlots));
+  if (ref && what !== 'delete') select(ref);
+  refreshTools();
+  const text = what === 'add' ? `Bar ${at / barSlots + 1} added` : what === 'duplicate' ? (n > 1 ? `${n} bars duplicated` : 'Bar duplicated') : (n > 1 ? `${n} bars deleted` : 'Bar deleted');
+  showToast(`${text}${take.layers.length > 1 ? ' in every layer' : ''}`, undo);
 }
 /** Take the target notes out of the manuscript and close the gap (undo-able). */
 function removeTargets() {
@@ -1980,6 +2034,9 @@ function moveTargets(dir, { byFret = false } = {}) {
 }
 $('selectTool').addEventListener('click', () => setSelectMode(!selectMode));
 $('removeTool').addEventListener('click', removeTargets);
+$('addBarTool').addEventListener('click', () => changeBars('add'));
+$('dupBarTool').addEventListener('click', () => changeBars('duplicate'));
+$('delBarTool').addEventListener('click', () => changeBars('delete'));
 // keyboard access to the manuscript: Tab reaches it, ←→ move between notes, Enter/Space opens the editor
 ui.score.addEventListener('keydown', (e) => {
   const hit = e.target.closest?.('.hit');

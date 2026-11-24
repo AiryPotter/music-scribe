@@ -331,7 +331,7 @@ export function validateProject(data) {
     take: {
       source: String(data.take.source || 'project').slice(0, 20),
       notes,
-      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, events: layers ? layers[active].events : events, ...cleanKey(data.take.score.key) },
+      score: { tempo: { bpm, beat0: Number(t.beat0) || 0, meter, offset: Number(t.offset) || 0 }, ...(int(data.take.score.bars) && data.take.score.bars > 0 && data.take.score.bars <= 2000 ? { bars: data.take.score.bars } : {}), events: layers ? layers[active].events : events, ...cleanKey(data.take.score.key) },
       ...(layers ? { layers, active } : {}),
     },
   };

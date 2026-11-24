@@ -101,6 +101,42 @@ export function removeEvents(score, idxs) {
   return order.length;
 }
 
+const copyEvent = (e) => ({ ...e, notes: e.notes.map((n) => ({ ...n })) });
+/** Make room: an empty stretch of `len` slots at slot `at` (a note ringing across stops there). Changes the array in place. */
+export function insertGap(events, at, len) {
+  for (const e of events) {
+    if (e.slot >= at) e.slot += len;
+    else if (e.slot + e.len > at) e.len = at - e.slot;
+  }
+}
+/** Repeat the stretch a…b straight after itself (everything later moves on). In place. */
+export function duplicateSpan(events, a, b) {
+  const len = b - a;
+  const copies = [];
+  for (const e of events) {
+    const end = e.slot + e.len;
+    if (e.slot >= b || end <= a) continue;
+    const c = copyEvent(e);
+    c.slot = Math.max(e.slot, a) + len;
+    c.len = end - Math.max(e.slot, a); // a note ringing on past the stretch does so from the copy
+    copies.push(c);
+  }
+  insertGap(events, b, len);
+  // a note that only starts after the stretch keeps its own start: the copies must not run into it
+  events.push(...copies);
+  events.sort((x, y) => x.slot - y.slot);
+  for (let i = 0; i + 1 < events.length; i++) events[i].len = Math.min(events[i].len, events[i + 1].slot - events[i].slot);
+}
+/** Cut the stretch a…b out (a note ringing into it stops at a). In place. */
+export function cutSpan(events, a, b) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.slot >= b) e.slot -= b - a;
+    else if (e.slot >= a) events.splice(i, 1);
+    else if (e.slot + e.len > a) e.len = a - e.slot;
+  }
+}
+
 /** The pitch classes of the key signature's scale (a minor key shares its relative major's notes). */
 export function scaleOf(fifths = 0) {
   const tonic = (((fifths * 7) % 12) + 12) % 12;

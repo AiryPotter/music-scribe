@@ -39,6 +39,7 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 ### Tools under the manuscript
 - **Select**: turn it on, then tap notes to pick several (tap again to un-pick). ▲▼ / W S / + − move all of them along the key together, and you hear them as a little run.
 - **Remove note / Remove N notes**: takes the note (or the picked notes) out and **closes the gap**: everything after slides earlier. Undo brings them back. Also the **Remove** button in the tray, or Delete.
+- **+ Bar / Duplicate bar / Delete bar**: work on the bar you've tapped a note or rest in (or every bar spanned by the picked notes), in **every layer** so they stay lined up; with nothing tapped, + Bar adds an empty bar at the end. A note ringing across the join of an added or deleted bar stops at the bar line. Undo-able.
 - **Clear Thy Manuscript**: clears the page (Undo brings it back).
 - On PC, hovering over a note highlights what a click will pick.
 - Removed notes count as "wrong extra notes" in the Fixes log.
