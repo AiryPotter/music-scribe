@@ -1259,3 +1259,7 @@ body.selecting .score-card .page { outline: 3px dashed var(--gold); outline-offs
 @media (hover: hover) { .score .bar-pick:hover .bar-pill { stroke: #3c5478; stroke-width: 2; } }
 .score .bar-shade { fill: none; stroke: none; pointer-events: none; }
 .score .bar-shade.on { fill: rgba(60, 84, 120, .13); }
+/* ---------- your own time signature ---------- */
+.own-time { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.own-time input { font: inherit; font-size: 16px; width: 110px; min-height: 40px; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); }
+.own-time select { width: auto; min-height: 40px; }

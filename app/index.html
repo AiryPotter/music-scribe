@@ -235,6 +235,14 @@
           <select id="meterSelect" aria-label="Time signature">
           </select>
         </label>
+        <form id="ownTime" class="own-time" hidden aria-label="Your own time signature" autocomplete="off">
+          <input id="ownTop" type="text" maxlength="40" aria-label="Top: a number, or groups like 3+3+2" title="A number (11), or groups (3+3+2)">
+          <span aria-hidden="true">/</span>
+          <select id="ownDen" aria-label="Bottom"><option>2</option><option>4</option><option selected>8</option><option>16</option></select>
+          <button class="ed-btn primary" type="submit">Use it</button>
+          <button id="ownTimeCancel" class="ed-btn" type="button">Cancel</button>
+          <span id="ownTimeMsg" class="hint small" role="alert"></span>
+        </form>
         <label class="meter-pick">
           <span>Key</span>
           <select id="keySelect" aria-label="Key"><option value="auto">Auto</option></select>
@@ -369,6 +377,8 @@
           <li><b>Tap a rest</b> to add a note there, <b>Remove rest</b> (the notes after it slide up), or <b>Hold the note before</b> through it.</li>
           <li><b>+ New take</b> (in Thy Library) keeps the take you have and starts another: <b>Record a take</b> opens a clean page for Begin; <b>Write one</b> gives you four empty bars to fill.</li>
           <li><b>Add a saved take as a layer:</b> in Thy Library, press the stacked-sheets button with a + beside a take. It's copied onto your manuscript as a new layer (up to 4); the saved take stays as it is.</li>
+          <li><b>Add a note</b> into a rest: the first one fills it; after that, each new note takes the length you used last.</li>
+          <li><b>Odd time signatures:</b> in <b>Time</b>, choose <b>Type my own…</b> and type any top number, or groups such as <b>3+3+2</b>, over 2, 4, 8 or 16. Groups set the beaming and the metronome's accents. Yours are kept in the list.</li>
           <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together. While it is on, the page has a dashed gold border; <kbd>Esc</kbd> turns it off.</li>
           <li><b>Detail</b>: <i>Simple</i> for a clean, readable page; <i>Detailed</i> keeps every rest and 16th note.</li>
           <li><b>Practice</b>: slow it down, loop it, add a metronome to the playback.</li>

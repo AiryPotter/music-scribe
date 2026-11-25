@@ -28,7 +28,7 @@ export function loopNotes(layers, loop, slotDur, top, until, before = 0) {
 /**
  * Split what was played into times round the loop, each written on the song's own bars.
  * notes: [{ midi, start, end, amp }] · top: when the first time round began · until: end of the recording
- * loop: { start, end } in slots · tempo: { bpm, meter }
+ * loop: { start, end } in slots · tempo: { bpm, meter, time }
  * → [{ round (1, 2…), events, notes, noteCount, partial }] (rounds with nothing played are left out)
  */
 export function splitRounds(notes, { top, until, loop, tempo, simple = true, openStrings = [] }) {
@@ -43,7 +43,7 @@ export function splitRounds(notes, { top, until, loop, tempo, simple = true, ope
       .map((n) => ({ ...n, end: Math.min(n.end, t0 + cycle) }))
       .filter((n) => n.end > n.start);
     if (!mine.length) continue;
-    const q = quantize(mine, { bpm: tempo.bpm, beat0: t0, meter: tempo.meter, offset: 0 }, { simple, openStrings, anchor: true });
+    const q = quantize(mine, { bpm: tempo.bpm, beat0: t0, meter: tempo.meter, time: tempo.time, offset: 0 }, { simple, openStrings, anchor: true });
     const events = q.events.filter((e) => e.slot >= 0 && e.slot < len).map((e) => ({
       slot: e.slot + loop.start, len: Math.max(1, Math.min(e.len, len - e.slot)), notes: e.keys.map((midi) => ({ midi })),
     }));

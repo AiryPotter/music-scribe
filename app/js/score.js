@@ -80,9 +80,6 @@ export function renderScore(el, model, opts = {}) {
 
   el.innerHTML = '';
   const pxWidth = Math.max(280, Math.floor(opts.width || el.clientWidth));
-  const scale = opts.scale || (pxWidth < 560 ? 1.1 : 1.3);
-  const width = pxWidth / scale;
-  const usable = width - 16;
 
   // lay bars out into rows by how much room each needs
   const rows = [];
@@ -90,6 +87,11 @@ export function renderScore(el, model, opts = {}) {
   // a bar needs room for the busiest layer in it
   const needOf = (i, first) => Math.max(minMeasureWidth(measures[i], first, i === 0, keyW),
     ...ghosts.map((g) => (g.measures[i] ? minMeasureWidth(g.measures[i], first, i === 0, keyW) : 0)));
+  // a bar too long for the page (17/8 on a phone): draw everything a little smaller so it still fits
+  const widest = Math.max(0, ...measures.map((_, i) => needOf(i, true)));
+  const scale = Math.max(0.4, Math.min(opts.scale || (pxWidth < 560 ? 1.1 : 1.3), pxWidth / (widest + 16)));
+  const width = pxWidth / scale;
+  const usable = width - 16;
   measures.forEach((m, i) => {
     const need = needOf(i, row.length === 0);
     if (row.length && used + need > usable) { rows.push(row); row = []; used = 0; }
@@ -156,7 +158,7 @@ export function renderScore(el, model, opts = {}) {
         stave?.addClef('treble', 'default', '8vb'); tab?.addClef('tab');
         if (fifths) stave?.addKeySignature(vexKeySpec(fifths));
       }
-      if (cell.i === 0) stave?.addTimeSignature(time.id);
+      if (cell.i === 0) stave?.addTimeSignature(`${time.num}/${time.den}`);
       if (typeof Stave.formatBegModifiers === 'function') Stave.formatBegModifiers([stave, tab].filter(Boolean));
       stave?.setContext(ctx).draw();
       tab?.setContext(ctx).draw();
@@ -229,7 +231,7 @@ export function renderScore(el, model, opts = {}) {
       if (showStaff) ghosts.forEach((g, gi) => {
         const gNotes = [];
         const gInBar = new Map();
-        (g.measures[cell.i] || time.groups.map((slots) => ({ slots, rest: true }))).forEach((p) => {
+        (g.measures[cell.i] || time.rests.map((slots) => ({ slots, rest: true }))).forEach((p) => {
           const [dur, dots] = DUR[p.slots] || ['q', 0];
           if (p.rest || !p.keys?.length) { gNotes.push(new GhostNote({ duration: dur, dots })); return; }
           const sp = p.keys.map((m) => spell(m + 12, fifths));
@@ -247,7 +249,7 @@ export function renderScore(el, model, opts = {}) {
         });
         let gBeams = [];
         try {
-          gBeams = Beam.generateBeams(gNotes, { groups: time.den === 8 ? time.groups.map((n) => new Fraction(n / 2, 8)) : [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: true })
+          gBeams = Beam.generateBeams(gNotes, { groups: time.grouped ? time.groups.map((n) => new Fraction(n, 16)) : [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: true })
             .filter((b) => b.getNotes().every((x) => x instanceof StaveNote));
         } catch { gBeams = []; }
         gv.push({ v: new Voice({ num_beats: time.num, beat_value: time.den }).setStrict(false).addTickables(gNotes), g, beams: gBeams });
@@ -262,7 +264,7 @@ export function renderScore(el, model, opts = {}) {
       let beams = [];
       if (showStaff) {
         try {
-          beams = Beam.generateBeams(staffNotes, { groups: time.den === 8 ? time.groups.map((n) => new Fraction(n / 2, 8)) : [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: ghosts.length > 0 });
+          beams = Beam.generateBeams(staffNotes, { groups: time.grouped ? time.groups.map((n) => new Fraction(n, 16)) : [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: ghosts.length > 0 });
         } catch { beams = []; }
       }
       const ref = stave || tab;

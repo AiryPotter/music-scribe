@@ -18,12 +18,13 @@ let style = 'tone';
 /** 'tone' = 2000/2600 Hz beep (default: it leaked into transcriptions least in testing); 'tick' = short noise tick. */
 export function setClickStyle(s) { style = s; }
 
-/** One tick at audio time t (accent = beat 1). Shared by the recording click and playback. */
+/** One tick at audio time t (accent 1 = beat 1, 0.5 = the start of a group, 0 = the rest). Shared by the recording click and playback. */
 export function clickSound(ctx, t, accent, dest = ctx.destination) {
+  const k = Number(accent) || 0;
   if (style === 'tone') {
     const osc = ctx.createOscillator(), og = ctx.createGain();
-    osc.frequency.value = accent ? 2600 : 2000;
-    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(accent ? 0.5 : 0.3, t + 0.002); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    osc.frequency.value = 2000 + 600 * k;
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.3 + 0.2 * k, t + 0.002); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
     osc.connect(og).connect(dest); osc.start(t); osc.stop(t + 0.05);
     return og;
   }
@@ -31,10 +32,10 @@ export function clickSound(ctx, t, accent, dest = ctx.destination) {
   src.buffer = noiseBuffer(ctx);
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = accent ? 5200 : 4200; // well above the guitar's notes and Basic Pitch's range
+  bp.frequency.value = 4200 + 1000 * k; // well above the guitar's notes and Basic Pitch's range
   bp.Q.value = 2.5;
   const g = ctx.createGain();
-  const peak = accent ? 1.4 : 0.9;
+  const peak = 0.9 + 0.5 * k;
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(peak, t + 0.001);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.018); // 18 ms: a tick, not a tone
@@ -46,7 +47,8 @@ export function clickSound(ctx, t, accent, dest = ctx.destination) {
 
 export class Metronome {
   /** leak: optional extra destination for the ticks (the demo uses it to imitate speakers heard by the mic) */
-  constructor(ctx, { bpm = 100, meter = 4, onBeat = () => {}, leak = null, beats = 0 } = {}) {
+  constructor(ctx, { bpm = 100, meter = 4, onBeat = () => {}, leak = null, beats = 0, accents = [] } = {}) {
+    this.accents = accents; // ticks of the bar that get a lighter accent (3+3+2…)
     this.ctx = ctx;
     this.beats = beats; // > 0: only this many ticks (a count-in), then silence
     this.leak = leak;
@@ -73,7 +75,7 @@ export class Metronome {
     while (this.next < this.ctx.currentTime + 0.15) {
       if (this.beats && this.beat >= this.beats) break;
       const b = this.beat, t = this.next;
-      this._click(t, b % this.meter === 0);
+      this._click(t, b % this.meter === 0 ? 1 : this.accents.includes(b % this.meter) ? 0.5 : 0);
       const delay = Math.max(0, (t - this.ctx.currentTime) * 1000);
       this.timeouts.push(setTimeout(() => this.onBeat(b, t), delay));
       this.beat++;

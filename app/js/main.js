@@ -19,7 +19,7 @@ import { removeClickNotes, removePlaybackNotes } from './notes-post.js';
 import * as FX from './fixlog.js';
 import { createBugReporter } from './bugreport.js';
 import { CHORD_KINDS, chordId, chordLabel, chordShape, chordsInKey, parseChordId } from './chordbook.js';
-import { DEFAULT_TIME, TIMES, timeInfo, timeOf } from './time.js';
+import { DEFAULT_TIME, MAX_BAR, MAX_TOP, TIMES, parseTime, timeInfo, timeOf } from './time.js';
 import { JAM_SIZES, nextTop, loopNotes, splitRounds } from './jam.js';
 
 // the last few errors, for bug reports (they stay on this device unless a report is shared)
@@ -87,8 +87,59 @@ let busy = false;
 ui.sens.value = store.get('sens', '55');
 ui.bpm.value = store.get('bpm', '100');
 ui.click.checked = store.get('click', '0') === '1';
-for (const t of TIMES) ui.meterSel.add(new Option(t, t));
-ui.meterSel.value = DEFAULT_TIME;
+// ---------- time signatures: the usual ones, the ones you've typed, and "Type my own…" ----------
+const OWN = '__own__';
+let timeNow = DEFAULT_TIME; // what the picker shows (it's never left on "Type my own…")
+let ownTimes = [];
+try { ownTimes = JSON.parse(store.get('ownTimes', '[]')).map((x) => parseTime(x)?.id).filter(Boolean).slice(0, 8); } catch { /* none */ }
+function listTimes() {
+  const all = [...TIMES, ...ownTimes.filter((x) => !TIMES.includes(x))];
+  if (!all.includes(timeNow)) all.push(timeNow); // an opened song's own time signature
+  ui.meterSel.innerHTML = '';
+  for (const t of all) ui.meterSel.add(new Option(t, t));
+  ui.meterSel.add(new Option('Type my own…', OWN));
+  ui.meterSel.value = timeNow;
+}
+function showTime(id) {
+  timeNow = id;
+  ui.meterSel.value = id;
+  if (ui.meterSel.value !== id) listTimes();
+}
+listTimes();
+function closeOwnTime() { $('ownTime').hidden = true; $('ownTimeMsg').textContent = ''; }
+ui.meterSel.addEventListener('change', (e) => { // (runs before the song hears about the change)
+  if (ui.meterSel.value !== OWN) { timeNow = ui.meterSel.value; closeOwnTime(); return; }
+  e.stopImmediatePropagation();
+  ui.meterSel.value = timeNow;
+  const T = timeInfo(timeNow);
+  $('ownTop').value = T.top;
+  $('ownDen').value = String(T.den);
+  $('ownTime').hidden = false;
+  $('ownTop').focus();
+  $('ownTop').select();
+});
+$('ownTime').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const top = $('ownTop').value.replace(/\s/g, ''), T = parseTime(`${top}/${$('ownDen').value}`);
+  if (!T) {
+    $('ownTimeMsg').textContent = /^\d+(\+\d+)*$/.test(top)
+      ? `That bar is too long: the top can add up to at most ${Math.min(MAX_TOP, (MAX_BAR * Number($('ownDen').value)) / 16)} here.`
+      : 'For the top, type a number (11) or groups (3+3+2).';
+    $('ownTop').focus();
+    return;
+  }
+  closeOwnTime();
+  if (!TIMES.includes(T.id)) {
+    ownTimes = [T.id, ...ownTimes.filter((x) => x !== T.id)].slice(0, 8);
+    store.set('ownTimes', JSON.stringify(ownTimes));
+  }
+  timeNow = T.id;
+  listTimes();
+  ui.meterSel.dispatchEvent(new Event('change', { bubbles: true }));
+  ui.meterSel.focus();
+});
+$('ownTimeCancel').addEventListener('click', () => { closeOwnTime(); ui.meterSel.focus(); });
+$('ownTime').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeOwnTime(); ui.meterSel.focus(); } });
 ui.click.addEventListener('change', () => store.set('click', ui.click.checked ? '1' : '0'));
 
 function gateFromSens(s) { return 0.05 * Math.pow(0.04, s / 100); }
@@ -405,12 +456,12 @@ async function start({ jamming = false } = {}) {
       const top = nextTop(p.t0, p.cycleDur, earCtx.currentTime) + offset;
       countInEnd = top;
       clickLag = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.005;
-      session.jam = { song: jamSong, loop: { ...jam.loop }, bpm, meter, top, slotDur: 60 / bpm / SLOTS_PER_BEAT, layers: jamLayers().map((L) => ({ events: L.events })), out: earCtx.outputLatency || 0 };
+      session.jam = { song: jamSong, loop: { ...jam.loop }, bpm, meter, time: timeSig.id, top, slotDur: 60 / bpm / SLOTS_PER_BEAT, layers: jamLayers().map((L) => ({ events: L.events })), out: earCtx.outputLatency || 0 };
     }
   } else if (ui.click.checked || song) { // a new layer always gets a one-bar count-in, so it lines up with the others
     const countOnly = !ui.click.checked;
     metro = new Metronome(ctx, {
-      bpm: tickBpm, meter: ticks, leak: session.leak || null, beats: countOnly ? ticks : 0,
+      bpm: tickBpm, meter: ticks, leak: session.leak || null, beats: countOnly ? ticks : 0, accents: timeSig.accents,
       onBeat: (b) => { if (b < ticks) mozart.say(String(b + 1)); else if (b === ticks) mozart.say(''); },
     });
     clickLag = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.005;
@@ -425,9 +476,9 @@ async function start({ jamming = false } = {}) {
     const slotDur = 60 / bpm / SLOTS_PER_BEAT;
     const playing = song.layers.map((L, k) => ({ L, k })).filter(({ L, k }) => k !== song.active && !L.mute && L.events.length);
     const backing = new Player();
-    backing.start(ctx, playing.map(({ L }) => ({ events: L.events, volume: L.vol ?? 1, pan: LAYER_PAN[L.hue], sound: L.sound })), bpm, 0, { meter, pulse: timeSig.pulse, at: countInEnd });
+    backing.start(ctx, playing.map(({ L }) => ({ events: L.events, volume: L.vol ?? 1, pan: LAYER_PAN[L.hue], sound: L.sound })), bpm, 0, { meter, pulse: timeSig.pulse, accents: timeSig.accents, at: countInEnd });
     session.overdub = {
-      song, layer: song.active, bpm, meter, downbeat: countInEnd, backing,
+      song, layer: song.active, bpm, meter, time: timeSig.id, downbeat: countInEnd, backing,
       played: playing.flatMap(({ L }) => L.events.flatMap((ev) => ev.notes.map((n) => ({ midi: n.midi, t: countInEnd + ev.slot * slotDur, dur: ev.len * slotDur })))),
     };
   }
@@ -659,7 +710,7 @@ function layoutTake(t, { quiet = false } = {}) {
   setNameKey(fifths);
   const barSlots = meter * SLOTS_PER_BEAT;
   const time = timeInfo(timeOf(tempo));
-  ui.meterSel.value = time.id; // the picker always shows the song's own time signature
+  showTime(time.id); // the picker always shows the song's own time signature
   layersOf(t);
   syncLayer(t);
   const layered = t.layers.length > 1;
@@ -668,7 +719,7 @@ function layoutTake(t, { quiet = false } = {}) {
   const otherBars = others.map(({ L }) => layoutBars(L.events, barSlots, 1, time));
   const bars = layoutBars(events, barSlots, Math.max(1, t.score.bars || 0, ...otherBars.map((b) => b.length)), time);
   const ghosts = others.map(({ L }, j) => {
-    while (otherBars[j].length < bars.length) otherBars[j].push(time.groups.map((slots) => ({ slots, rest: true })));
+    while (otherBars[j].length < bars.length) otherBars[j].push(time.rests.map((slots) => ({ slots, rest: true })));
     return {
       color: LAYER_HUES[L.hue],
       fade: LAYER_FADE[L.hue],
@@ -1241,7 +1292,7 @@ function togglePlay() {
   setAudioSession('playback');
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   wake(earCtx);
-  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, loop, fullLoop: !!loop });
+  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, accents: timeInfo(timeOf(take.score.tempo)).accents, loop, fullLoop: !!loop });
   ui.play.textContent = '❚❚';
   ui.play.setAttribute('aria-label', 'Pause');
   ui.play.classList.add('on');
@@ -1542,7 +1593,7 @@ async function analyzeLayer(od, rec, click, latency, live) {
   const before = got.length;
   got = removePlaybackNotes(got, od.played.map((x) => ({ midi: x.midi, t: rel(x.t) + latency, dur: x.dur })));
   const leaked = before - got.length;
-  const tempo = { bpm: od.bpm, beat0: downbeat, meter: od.meter, offset: 0 };
+  const tempo = { bpm: od.bpm, beat0: downbeat, meter: od.meter, time: od.time, offset: 0 };
   const q = quantize(got, tempo, { simple: ui.detailSel.value !== 'detailed', openStrings: tuningStrings().map((m) => m + guitar.capo), anchor: true });
   L.events = q.events.map((e) => ({ slot: e.slot, len: e.len, notes: e.keys.map((midi) => ({ midi })) }));
   L.notes = got;
@@ -1617,7 +1668,7 @@ function startJam(extra = null) {
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return false; }
   wake(earCtx);
   jam.hearing = extra;
-  jam.player.start(earCtx, layers, take.score.tempo.bpm, jam.loop.start, { click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, loop: jam.loop, fullLoop: true });
+  jam.player.start(earCtx, layers, take.score.tempo.bpm, jam.loop.start, { click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, accents: timeInfo(timeOf(take.score.tempo)).accents, loop: jam.loop, fullLoop: true });
   clearInterval(jam.timer);
   jam.timer = setInterval(showJamPos, 150);
   return true;
@@ -1682,7 +1733,7 @@ async function analyzeJam(j, rec, stream, latency, live) {
   const lowest = Math.min(38, Math.min(...tuningStrings()) + guitar.capo);
   let got = (result?.length ? result : live).filter((n) => n.midi >= lowest);
   got = removePlaybackNotes(got, loopNotes(j.layers, j.loop, j.slotDur, top, until, top)); // the loop heard through speakers
-  const rounds = splitRounds(got, { top, until, loop: j.loop, tempo: { bpm: j.bpm, meter: j.meter }, simple: ui.detailSel.value !== 'detailed', openStrings: tuningStrings().map((m) => m + guitar.capo) });
+  const rounds = splitRounds(got, { top, until, loop: j.loop, tempo: { bpm: j.bpm, meter: j.meter, time: j.time }, simple: ui.detailSel.value !== 'detailed', openStrings: tuningStrings().map((m) => m + guitar.capo) });
   layoutTake(song, { quiet: true });
   jam.rounds = rounds.map((r) => ({ ...r, id: newTakeId(), source: result?.length ? 'accurate' : 'live' }));
   syncJam();
@@ -1871,9 +1922,9 @@ function pieceLabel(ev, pl) {
 function whereLabel(slot) {
   const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
   const inBar = slot % barSlots;
-  if (timeInfo(timeOf(take.score.tempo)).den === 8) return `Bar ${Math.floor(slot / barSlots) + 1}, beat ${Math.floor(inBar / 2) + 1}${inBar % 2 ? '½' : ''}`; // beats are eighths
-  const frac = ['', '¼', '½', '¾'][inBar % SLOTS_PER_BEAT];
-  return `Bar ${Math.floor(slot / barSlots) + 1}, beat ${Math.floor(inBar / SLOTS_PER_BEAT) + 1}${frac}`;
+  const unit = 16 / timeInfo(timeOf(take.score.tempo)).den; // slots in one beat (an eighth in 7/8, a half in 3/2)
+  const frac = ['', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞'][((inBar % unit) / unit) * 8];
+  return `Bar ${Math.floor(slot / barSlots) + 1}, beat ${Math.floor(inBar / unit) + 1}${frac}`;
 }
 
 E.LENGTHS.forEach(([slots, name]) => {
@@ -2451,7 +2502,7 @@ ui.edChips.addEventListener('click', (e) => {
 });
 ui.edLens.addEventListener('click', (e) => {
   const b = e.target.closest('[data-len]');
-  if (b && !b.disabled) edit((s, x) => E.setLength(s, x, Number(b.dataset.len)), { what: 'length' });
+  if (b && !b.disabled) { addLen = Number(b.dataset.len); edit((s, x) => E.setLength(s, x, addLen), { what: 'length' }); }
 });
 ui.edChord.addEventListener('change', () => {
   if (sel?.kind !== 'ev') return;
@@ -2461,12 +2512,15 @@ ui.edChord.addEventListener('change', () => {
 });
 ui.edChord.addEventListener('keydown', (e) => { if (e.key === 'Enter') ui.edChord.blur(); });
 
+let addLen = null; // how long the next added note is: the last length added or chosen
 function act(name) {
   if (!sel) return;
   if (sel.kind === 'rest') {
     if (name === 'fill') {
       const midi = E.guessPitch(take.score, sel.at);
-      edit((s, x) => E.fillRest(s, x.at, x.len, midi), { listen: 'note', what: 'fill' });
+      const room = sel.len;
+      addLen ??= room; // the first one fills the silence; after that, the length used last
+      edit((s, x) => E.fillRest(s, x.at, Math.min(room, addLen), midi), { listen: 'note', what: 'fill' });
     } else if (name === 'delete') deleteSelected();
     else if (name === 'rest-remove') restTool('remove');
     else if (name === 'rest-hold') restTool('hold');

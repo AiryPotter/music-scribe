@@ -18,7 +18,7 @@ Play your acoustic guitar; little Mozart writes it down as notation and tab.
 ## Status: Milestone 2 ✅
 - Records the whole take; press **Cease** and Mozart writes the **accurate version** with Spotify's Basic Pitch, on-device
 - **Tempo**: worked out automatically from free playing (fine-tune with − / + / ½× / 2×), or turn on the **Metronome** for a one-bar count-in and a tick on every beat
-- **Time signature**: 2/4, 3/4, **4/4** (default), 5/4, 6/8, 7/8, 9/8 or 12/8. The metronome ticks quarters in x/4, dotted quarters in 6/8, 9/8 and 12/8, eighths in 7/8; ♩ is always the quarter note. Changing it on an edited song moves the bar lines and keeps your notes. For x/8, record with the metronome on: without it the tempo is guessed as quarter-note beats
+- **Time signature**: 2/4, 3/4, **4/4** (default), 5/4, 3/2, 3/8, 6/8, 7/8, 9/8, 12/8, 15/8, or **Type my own…**: any top number up to 32 or groups like 3+3+2, over 2, 4, 8 or 16 (your last 8 are remembered). Own groups set the beaming and give the metronome light accents; the staff shows the total (8/8) and MusicXML keeps the groups. The metronome ticks quarters in x/4, dotted quarters in 6/8, 9/8, 12/8 and 15/8, eighths in 3/8 and 7/8, half notes in 3/2; ♩ is always the quarter note. Changing it on an edited song moves the bar lines and keeps your notes. For x/8, record with the metronome on: without it the tempo is guessed as quarter-note beats
 - Real rhythm: 16th-note grid, dotted notes, ties across bars, beamed eighths, rests
 - **Chords**: stacked in the notation, named above the staff (C, Am7, G/B…), and laid out as real chord shapes in the tab
 - Falls back to the live notes if the model can't load (e.g. offline on first use)
@@ -131,6 +131,9 @@ Tap **🐞 Bug** (top of the page, or "Report a bug" in the Guide). Write what w
 
 ## New take
 **+ New take** at the top of Thy Library keeps the current take and asks: **Record a take** (a clean page, ready for Begin) or **Write one** (four empty bars in the current time signature, tempo, tuning and capo). An empty written take joins the library once it has a note. Undo goes back to the previous take.
+
+## Adding notes
+**+ Add a note here** (tap a rest) fills the silence the first time; after that each new note takes the last length you added or chose (shorter if the rest has less room).
 
 ## Add a take as a layer
 Each take in Thy Library has a button (stacked sheets with a +) that copies it onto the open manuscript as a new layer; a take with several layers brings each one, if there's room (4 in all). It starts at bar 1 and follows the open song's tempo, time signature and key; notes are not transposed. The saved take isn't changed, and Undo takes the layer away.

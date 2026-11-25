@@ -167,12 +167,13 @@ function pickGrouped(pos, room, groups) {
   let gs = 0, gi = 0;
   while (pos >= gs + groups[gi]) { gs += groups[gi]; gi++; }
   const inGroup = pos - gs, left = groups[gi] - inGroup;
+  if (pos === 0 && room === groups.reduce((a, b) => a + b, 0) && LENS.includes(room)) return room; // the whole bar in one note
   if (inGroup === 0) { // whole groups from here that make one written note
     let sum = 0, best = 0;
     for (let k = gi; k < groups.length; k++) { sum += groups[k]; if (sum <= room && (sum === groups[gi] || (sum === 12 && gi % 2 === 0) || sum === 8) && LENS.includes(sum)) best = sum; }
     if (best) return best;
   }
-  for (const len of [6, 4, 3, 2, 1]) {
+  for (const len of LENS) {
     if (len > room || len > left) continue;
     if (len > 1 && inGroup % 2 !== 0) continue;
     return len;
@@ -180,7 +181,7 @@ function pickGrouped(pos, room, groups) {
   return 1;
 }
 function pickLen(pos, room, barSlots, time) {
-  if (time?.den === 8) return pickGrouped(pos, room, time.groups);
+  if (time?.grouped) return pickGrouped(pos, room, time.groups);
   for (const len of LENS) {
     if (len > room) continue;
     if (len === 16 && !(pos === 0 && barSlots === 16)) continue;
@@ -464,8 +465,8 @@ function quantizeSimple(notes, tempo, { anchor = false } = {}) {
   const { bpm, beat0, meter } = tempo;
   const p = 60 / bpm;
   const slotDur = p / SLOTS_PER_BEAT;
-  const GRID = 2; // slots: an 8th note
   const barSlots = meter * SLOTS_PER_BEAT;
+  const GRID = barSlots % 2 || /\/16$/.test(tempo.time || '') ? 1 : 2; // slots: an 8th note (16ths when the bar is counted in 16ths)
   const kept = notes.filter((n) => !(n.end - n.start < 0.1 && (n.amp ?? 0.6) < 0.5));
   if (!kept.length) return { events: [], barStart: beat0 };
 

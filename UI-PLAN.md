@@ -122,3 +122,7 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 
 ## Bars picked to loop (2026-11-24)
 - A number above every bar on the page (never in exports) toggles it. Loop = first picked to last picked; none = whole manuscript. One choice drives Practice Loop and Jam; the 1/2/4/8 and All buttons change the same choice. Blue, so it can't be mistaken for the gold note selection. Picks aren't saved with the song; a new take or time signature clears them.
+
+## Any time signature + remembered note length (2026-11-24)
+- time.js reads any "n/d" or "a+b+c/d" (d = 2, 4, 8, 16). "Type my own…" opens a small form beside Time. Groups different from the usual ones are part of the name (3+3+2/8).
+- Notes added into rests keep the last length added or chosen.

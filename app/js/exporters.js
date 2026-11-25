@@ -10,7 +10,7 @@
 //   project: { ...everything needed to reopen } }
 
 import { spell } from './keys.js';
-import { TIMES, timeInfo, timeOf } from './time.js';
+import { TIMES, parseTime, timeInfo, timeOf } from './time.js';
 import { DEFAULT_SOUND, SOUNDS, soundInfo } from './sounds.js';
 
 const enc = new TextEncoder();
@@ -118,7 +118,7 @@ export function toMusicXML(song) {
         return `<staff-tuning line="${line + 1}"><tuning-step>${step}</tuning-step>${alter ? `<tuning-alter>${alter}</tuning-alter>` : ''}<tuning-octave>${octave(m)}</tuning-octave></staff-tuning>`;
       }).join('');
       L.push(`<attributes><divisions>4</divisions><key><fifths>${song.key?.fifths || 0}</fifths><mode>${song.key?.mode || 'major'}</mode></key>`
-        + `<time><beats>${timeInfo(song.time).num}</beats><beat-type>${timeInfo(song.time).den}</beat-type></time><staves>2</staves>`
+        + `<time><beats>${timeInfo(song.time).top}</beats><beat-type>${timeInfo(song.time).den}</beat-type></time><staves>2</staves>`
         + '<clef number="1"><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef>'
         + '<clef number="2"><sign>TAB</sign><line>5</line></clef>'
         + `<staff-details number="2"><staff-lines>${song.strings.length}</staff-lines>${tunings}${song.capo ? `<capo>${song.capo}</capo>` : ''}</staff-details>`
@@ -161,7 +161,7 @@ export function toMIDI(song) {
     return [
       0, 0xff, 0x03, ...vlq(name.length), ...name,
       0, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff,
-      0, 0xff, 0x58, 0x04, timeInfo(song.time).num, timeInfo(song.time).den === 8 ? 3 : 2, timeInfo(song.time).pulse * 6, 8,
+      0, 0xff, 0x58, 0x04, timeInfo(song.time).num, Math.log2(timeInfo(song.time).den), timeInfo(song.time).pulse * 6, 8,
       0, 0xff, 0x59, 0x02, (song.key?.fifths || 0) & 0xff, song.key?.mode === 'minor' ? 1 : 0, // key signature
     ];
   };
@@ -277,7 +277,7 @@ export function validateProject(data) {
   const int = Number.isInteger;
   const t = data.take.score.tempo || {};
   const bpm = Number(t.bpm), meter = Number(t.meter);
-  if (!(bpm >= 20 && bpm <= 400) || !TIMES.some((x) => timeInfo(x).meter === meter)) throw damaged();
+  if (!(bpm >= 20 && bpm <= 400) || !(parseTime(t.time)?.meter === meter || TIMES.some((x) => timeInfo(x).meter === meter))) throw damaged();
   if (data.take.score.events.length > 20000) throw damaged();
   const cleanEvents = (list) => list.map((e) => {
     if (!e || !int(e.slot) || e.slot < 0 || !int(e.len) || e.len < 1 || !Array.isArray(e.notes) || !e.notes.length) throw damaged();

@@ -25,7 +25,7 @@ export class Player {
    * opts: { speed (0.25–4), click (bool), meter, pulse (slots between ticks), loop: { start, end } in slots, or null,
    *   at: audio time to start (default: right away) }
    */
-  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, pulse = SLOTS_PER_BEAT, loop = null, at = null, fullLoop = false } = {}) {
+  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, pulse = SLOTS_PER_BEAT, accents = [], loop = null, at = null, fullLoop = false } = {}) {
     this.stop(false);
     if (Array.isArray(layers) && layers.length && !layers[0]?.events) layers = [{ events: layers, active: true }];
     layers = (layers || []).filter((L) => L.events?.length);
@@ -68,7 +68,7 @@ export class Player {
     });
     if (click) {
       for (let bar = Math.floor(seg.start / barSlots) * barSlots; bar < seg.end; bar += barSlots) {
-        for (let s = bar; s < bar + barSlots; s += pulse) if (s >= seg.start && s < seg.end) items.push({ slot: s, tick: true, accent: s === bar });
+        for (let s = bar; s < bar + barSlots; s += pulse) if (s >= seg.start && s < seg.end) items.push({ slot: s, tick: true, accent: s === bar ? 1 : accents.includes((s - bar) / pulse) ? 0.5 : 0 });
       }
     }
     items.sort((a, b) => a.slot - b.slot || (a.tick ? -1 : 1));
