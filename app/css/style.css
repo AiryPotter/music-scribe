@@ -1244,3 +1244,7 @@ body.selecting .score-card .page { outline: 3px dashed var(--gold); outline-offs
 .ed-chordmenu { border-top: 0; }
 .ed-chordmenu label { font-size: 15px; font-weight: 700; }
 .ed-chordmenu select { font: inherit; font-size: 16px; min-height: 40px; flex: 1 1 130px; min-width: 0; padding: 0 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); }
+/* ---------- + New take ---------- */
+.tk-new { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+.tk-new-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.tk-new .ed-btn { min-height: 44px; }

@@ -366,6 +366,7 @@
           <li><b>On a PC:</b> <kbd>Ctrl</kbd>+click adds a note to the selection, <kbd>Shift</kbd>+click selects everything in between, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+click picks whole bars. Then <kbd>Ctrl</kbd>+<kbd>C</kbd> copy, <kbd>Ctrl</kbd>+<kbd>X</kbd> cut, <kbd>Ctrl</kbd>+<kbd>V</kbd> paste, <kbd>Ctrl</kbd>+<kbd>D</kbd> delete, <kbd>Ctrl</kbd>+<kbd>A</kbd> select all, <kbd>Esc</kbd> let go. Notes paste into the rest you tap, or straight after the note you tap; bars paste as new bars.</li>
           <li><b>Chords:</b> tap a note or rest and choose from <b>Add chord to bar …</b>. You hear it, and it fills that bar in the layer you're editing, with its name and a playable shape. Choose another to swap it. Chords that fit your key come first.</li>
           <li><b>Tap a rest</b> to add a note there, <b>Remove rest</b> (the notes after it slide up), or <b>Hold the note before</b> through it.</li>
+          <li><b>+ New take</b> (in Thy Library) keeps the take you have and starts another: <b>Record a take</b> opens a clean page for Begin; <b>Write one</b> gives you four empty bars to fill.</li>
           <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together. While it is on, the page has a dashed gold border; <kbd>Esc</kbd> turns it off.</li>
           <li><b>Detail</b>: <i>Simple</i> for a clean, readable page; <i>Detailed</i> keeps every rest and 16th note.</li>
           <li><b>Practice</b>: slow it down, loop a few bars, add a metronome to the playback.</li>
@@ -522,6 +523,13 @@
       <button id="tkClose" class="mini" type="button" aria-label="Close saved takes">✕</button>
     </div>
     <div class="ed-body">
+      <div class="tk-new">
+        <button id="tkNew" class="ed-btn primary" type="button" aria-expanded="false" aria-controls="tkNewPick">+ New take</button>
+        <div id="tkNewPick" class="tk-new-pick" role="group" aria-label="What kind of take?" hidden>
+          <button id="tkNewRec" class="ed-btn" type="button" title="A clean page, ready for Begin">🎸 Record a take</button>
+          <button id="tkNewWrite" class="ed-btn" type="button" title="Four empty bars to fill with chords or notes">✒️ Write one</button>
+        </div>
+      </div>
       <p id="tkEmpty" class="hint" hidden>No saved takes yet. Each take is saved here by itself once Mozart has written it out.</p>
       <ul id="tkList" class="tk-list"></ul>
     </div>

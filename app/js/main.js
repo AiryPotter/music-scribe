@@ -737,7 +737,7 @@ function layoutTake(t, { quiet = false } = {}) {
   ui.count.textContent = `${noteCount} note${noteCount === 1 ? '' : 's'}${layered ? ` · ${A.name}` : ''}`;
   syncLayerUi();
   if (!quiet) {
-    const how = t.source === 'accurate' ? 'Accurate' : 'From live notes (offline)';
+    const how = t.source === 'accurate' ? 'Accurate' : t.source === 'written' ? 'Written by hand' : 'From live notes (offline)';
     syncKeyUi();
     setStatus(`${how} · ♩=${Math.round(tempo.bpm)} · ${time.id} · ${keyName(t.score.key)} · ${measures.length} bar${measures.length === 1 ? '' : 's'}${chordCount ? ` · ${chordCount} chord${chordCount === 1 ? '' : 's'}` : ''}${t.edited ? ' · edited' : ''}`);
   }
@@ -818,9 +818,11 @@ ui.bpmHalf.addEventListener('click', () => onTempoEdit(clampBpm(ui.bpm.value) / 
 ui.bpmDouble.addEventListener('click', () => onTempoEdit(clampBpm(ui.bpm.value) * 2));
 /** Put the bar lines somewhere else without touching a single note. */
 function rebar(tempo) {
+  // (empty bars waiting to be filled stay, unless the bars change length)
+  const keepBars = take.source === 'written' && (!take.score.events.length || timeOf(tempo) === timeOf(take.score.tempo));
   take.tempo = { ...tempo };
   take.score.tempo = { ...tempo };
-  delete take.score.bars;
+  if (!keepBars) delete take.score.bars;
   take.edited = true;
   closeEditor({ relayout: false });
   layoutTake(take);
@@ -2668,6 +2670,45 @@ function closeTakes() {
   document.body.classList.remove('editing');
 }
 ui.takes.addEventListener('click', openTakes);
+// ---------- + New take: record one, or write one on empty bars ----------
+function pickNewTake(on) {
+  $('tkNewPick').hidden = !on;
+  $('tkNew').setAttribute('aria-expanded', String(on));
+}
+$('tkNew').addEventListener('click', () => {
+  const on = $('tkNewPick').hidden;
+  pickNewTake(on);
+  if (on) $('tkNewRec').focus();
+});
+/** Put the page away (it stays in Thy Library; Undo brings it back), then start the new take. */
+function newTake(kind) {
+  if (session || busy) return;
+  if (writing()) { showToast(WRITING_MSG); return; }
+  pickNewTake(false);
+  closeTakes();
+  flushSave();
+  const kept = !!take?.id && !!take.score?.events?.length;
+  const had = !!take?.score?.events?.length;
+  const note = !had ? '' : kept ? 'Your last take is kept in Thy Library.' : 'Your last take wasn’t in the library; Undo brings it back.';
+  if (selectMode) setSelectMode(false);
+  if (kind === 'record') {
+    ui.clear.click();
+    refreshTakeCount();
+    ui.record.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    ui.record.focus({ preventScroll: true });
+    setStatus('A new take · press Begin when you’re ready');
+  } else {
+    const T = timeInfo(ui.meterSel.value), sound = store.get('sound', DEFAULT_SOUND);
+    openProject({ format: PROJECT_FORMAT, version: 1, title: '', guitar: { tuning: guitar.id, strings: tuningStrings(), capo: guitar.capo },
+      take: { source: 'written', sound, score: { tempo: { bpm: Math.max(20, Math.min(400, Number(ui.bpm.value) || 100)), meter: T.meter, time: T.id }, bars: 4, events: [] } } });
+    refreshTakeCount();
+    if (take?.refs?.length) select(take.refs[0]);
+    setStatus('A new take · choose a chord for the bar, or add a note');
+  }
+  if (note) showToast(note, undo); else hideToast();
+}
+$('tkNewRec').addEventListener('click', () => newTake('record'));
+$('tkNewWrite').addEventListener('click', () => newTake('write'));
 $('hintTakes').addEventListener('click', openTakes);
 $('tkClose').addEventListener('click', closeTakes);
 /** Rename a take right in the list: the title becomes a text box with Save and Cancel. */

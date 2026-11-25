@@ -113,3 +113,6 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 ## Chord menu + one highlight (2026-11-24)
 - "Add chord to bar N" drop-down at the top of the note editor (notes and rests): in-key chords first, then 12 roots × 11 types (chordbook.js). Fills the tapped bar in the active layer only, plays it, stays selected; replay button; one Undo per choice. Root is always the lowest note; muted strings only at the edges; at most 4 fingers and 4 frets.
 - Highlight causes: the Select tool left on, and hover / keyboard focus using nearly the same fill as "selected". Now gold fill = selected only; hover = dashed blue-grey outline; focus = outline; Select on = dashed gold page border, Esc turns it off.
+
+## New take (2026-11-24)
+- "+ New take" at the top of Thy Library opens two choices each time: Record a take (clean page, Begin focused) or Write one (four empty bars). The old take stays in the library; the message's Undo returns to it.
