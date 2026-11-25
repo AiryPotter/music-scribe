@@ -116,3 +116,6 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 
 ## New take (2026-11-24)
 - "+ New take" at the top of Thy Library opens two choices each time: Record a take (clean page, Begin focused) or Write one (four empty bars). The old take stays in the library; the message's Undo returns to it.
+
+## Add a take as a layer (2026-11-24)
+- Third button on each library row. All-or-nothing when a multi-layer take doesn't fit; fret positions are kept only if tuning and capo match; a different time signature is mentioned in the message.

@@ -132,6 +132,9 @@ Tap **🐞 Bug** (top of the page, or "Report a bug" in the Guide). Write what w
 ## New take
 **+ New take** at the top of Thy Library keeps the current take and asks: **Record a take** (a clean page, ready for Begin) or **Write one** (four empty bars in the current time signature, tempo, tuning and capo). An empty written take joins the library once it has a note. Undo goes back to the previous take.
 
+## Add a take as a layer
+Each take in Thy Library has a button (stacked sheets with a +) that copies it onto the open manuscript as a new layer; a take with several layers brings each one, if there's room (4 in all). It starts at bar 1 and follows the open song's tempo, time signature and key; notes are not transposed. The saved take isn't changed, and Undo takes the layer away.
+
 ## Chord menu
 Tap a note or rest, then choose from **Add chord to bar …** at the top of the editor: it plays straight away in the layer's instrument and fills that bar (one strum) in the layer you're editing, with its name and a playable shape for your tuning and capo. It replaces notes that start in that bar; other layers and bars don't move. Choose another to swap it; each choice is one Undo. Chords in the song's key come first, then all 12 roots × major, minor, 7, maj7, m7, sus2, sus4, 5, dim, aug and add9.
 

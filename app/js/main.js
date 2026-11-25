@@ -1281,6 +1281,47 @@ function addHarmony(steps) {
   setStatus(`${name} added · ▶ plays it with the others · edit any note, or Undo to take it away`);
   audition(events[0].notes.map((n) => n.midi).concat(src.events[0].notes.map((n) => n.midi)));
 }
+/**
+ * Copy a saved take onto the page as a new layer (a take with several layers brings each of them).
+ * The song's tempo, time signature, key, tuning and capo stay as they are; the saved take isn't changed.
+ */
+function addTakeAsLayer(rec) {
+  if (session || busy) return;
+  if (writing()) { showToast(WRITING_MSG); return; }
+  if (!take?.score) { showToast('Open a take first (or press + New take), then add this one to it as a layer.'); return; }
+  const here = layersOf(take);
+  syncLayer();
+  let data;
+  try { data = validateProject(rec.data); } catch (err) { showToast(err.message); return; }
+  const song = take.id === rec.id // the take on the page: copy it as it looks now
+    ? { layers: here, time: timeOf(take.score.tempo) }
+    : { layers: data.take.layers || [{ events: data.take.score.events, sound: data.take.sound, vol: 1 }], time: timeOf(data.take.score.tempo) };
+  const from = song.layers.filter((L) => L.events.length);
+  const room = MAX_LAYERS - here.length;
+  if (!from.length) { showToast('That take has no notes to add.'); return; }
+  if (!room) { showToast(`This song already has ${MAX_LAYERS} layers. Delete one first.`); return; }
+  if (from.length > room) { showToast(`That take has ${from.length} layers, but there’s only room for ${room} more here.`); return; }
+  // the same frets only make sense in the same tuning
+  const open = (strings, capo) => strings.map((m) => m + capo).join();
+  const sameGuitar = take.id === rec.id || open(data.guitar.strings, data.guitar.capo) === open(tuningStrings(), guitar.capo);
+  const title = rec.title || 'Untitled';
+  const added = from.map((L) => ({
+    name: (from.length > 1 ? `${title.slice(0, 12)} · ${L.name}` : title).slice(0, 24),
+    sound: L.sound, vol: L.vol ?? 1,
+    events: L.events.map((e) => ({ ...e, notes: e.notes.map((n) => (sameGuitar ? { ...n } : { midi: n.midi })) })),
+  }));
+  pushHistory();
+  for (const L of added) {
+    const used = new Set(take.layers.map((x) => x.hue));
+    take.layers.push({ ...L, hue: [0, 1, 2, 3].find((h) => !used.has(h)), notes: [], source: 'project', mute: false, thin: false });
+  }
+  take.edited = true;
+  useLayer(take.layers.length - added.length);
+  layoutTake(take);
+  closeTakes();
+  const meters = song.time === timeOf(take.score.tempo) ? '' : ` It was in ${song.time}, so its bar lines now fall in ${timeOf(take.score.tempo)}.`;
+  showToast(`Added “${title}” as ${added.length > 1 ? `${added.length} layers` : 'a layer'}.${meters}`, undo);
+}
 function deleteLayer() {
   if (!take?.score || session || writing() || !(take.layers?.length > 1)) return;
   syncLayer();
@@ -2645,6 +2686,7 @@ async function renderTakes() {
         <strong>${escHtml(r.title || 'Untitled')}</strong>
         <small>${fmtWhen(r.savedAt)} · ${r.bars} bar${r.bars === 1 ? '' : 's'} · ♩=${r.bpm} · ${r.noteCount} notes${take?.id === r.id ? ' · open now' : ''}</small>
       </button>
+      <button type="button" class="mini" data-do="layer" aria-label="Add ${escHtml(r.title || 'Untitled')} as a layer" title="Add to the manuscript as a layer"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M3 8l8-4 8 4-8 4z"/><path d="M3 13l8 4 2-1M18 13v8M14 17h8"/></svg></button>
       <button type="button" class="mini" data-do="rename" aria-label="Rename" title="Rename">✎</button>
       <button type="button" class="mini" data-do="delete" aria-label="Delete" title="Delete">🗑</button>
     </li>`).join('');
@@ -2750,6 +2792,8 @@ $('tkList').addEventListener('click', async (e) => {
     if (take?.id === rec.id) return; // already on the page
     flushSave();
     openProject(rec.data, { id: rec.id, createdAt: rec.createdAt });
+  } else if (b.dataset.do === 'layer') {
+    addTakeAsLayer(rec);
   } else if (b.dataset.do === 'rename') {
     renameInline(li, rec);
   } else if (b.dataset.do === 'delete') {
