@@ -127,7 +127,7 @@ Mozart now writes the take out **while you play**: about once a second the newes
 Tap **🐞 Bug** (top of the page, or "Report a bug" in the Guide). Write what went wrong and what you were doing, add screenshots (from Photos/files, pasted with Ctrl+V, or on a PC **Capture the screen**), and choose whether to include a picture of the manuscript and the app/device details (app version, browser, screen size, the take, layers, settings and any recent errors). **Save PDF** writes everything into one file, *Music Scribe bug report <date time>.pdf*; **Share…** sends it from a phone. Nothing leaves your device unless you share it, and what you've typed is kept as a draft until you tap **New report**.
 
 ## Jam: loop the melody and play along
-**🔁 Jam along with this** (above the manuscript) loops **1, 2, 4 or 8 bars** of your song, from any bar, while you play freely; nothing is written. Tap **● Record** and writing starts the next time the loop comes round, without the loop stopping. Keep going as long as you like: **each time round is written separately**. Then **Hear** each one with the melody and **Keep** the best as a new layer (Undo takes it away). Rounds you don't keep are dropped when you jam again, move the loop or close the app. Only notes are kept, never audio. Headphones work best.
+**🔁 Jam along with this** (above the manuscript) loops the bars you selected by number (or the **whole manuscript** if none are) while you play freely; nothing is written. Tap **● Record** and writing starts the next time the loop comes round, without the loop stopping. Keep going as long as you like: **each time round is written separately**. Then **Hear** each one with the melody and **Keep** the best as a new layer (Undo takes it away). Rounds you don't keep are dropped when you jam again, move the loop or close the app. Only notes are kept, never audio. Headphones work best.
 
 ## New take
 **+ New take** at the top of Thy Library keeps the current take and asks: **Record a take** (a clean page, ready for Begin) or **Write one** (four empty bars in the current time signature, tempo, tuning and capo). An empty written take joins the library once it has a note. Undo goes back to the previous take.
@@ -160,7 +160,7 @@ Mozart works out the **key** from your notes (major or minor, e.g. "A minor", "B
 ## Practice playback
 A **Practice** row appears under the manuscript header when there's music (on phones it folds into one "Practice" button):
 - **Speed** slider, 25–400% in 25% steps (200% = double time); always starts at 100%
-- **Loop**: tap a note, turn Loop on, and its bar repeats; choose **1, 2 or 4 bars**
+- **Loop**: tap a bar's number to select or unselect it (the first one turns Loop on); it repeats from the first selected bar to the last. **None selected, or All, loops the whole manuscript.** 1, 2 and 4 pick that many bars from the selected note. Jam uses the same bars
 - **Metronome**: a tick on every beat while playing back, accented on beat 1
 Changing any of these while music plays carries on from the same note. Metronome and the bar count are remembered.
 

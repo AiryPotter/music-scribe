@@ -5,16 +5,6 @@ import { quantize } from './rhythm.js';
 const SLOTS_PER_BEAT = 4;
 export const JAM_SIZES = [1, 2, 4, 8];
 
-/** Loop sizes that make sense for a song this long (the biggest may run just past its end). */
-export function jamSizes(songBars) {
-  return JAM_SIZES.filter((n) => n === 1 || n < 2 * songBars);
-}
-/** The whole song if a size fits it, else the longest size. */
-export function defaultJamSize(songBars) {
-  const ok = jamSizes(songBars);
-  return ok.find((n) => n >= songBars) ?? ok[ok.length - 1];
-}
-
 /** The next time the loop comes round to its start (at least `lead` seconds away). */
 export function nextTop(t0, cycleDur, now, lead = 0.4) {
   return t0 + Math.max(0, Math.ceil((now + lead - t0) / cycleDur)) * cycleDur;

@@ -1248,3 +1248,14 @@ body.selecting .score-card .page { outline: 3px dashed var(--gold); outline-offs
 .tk-new { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
 .tk-new-pick { display: flex; flex-wrap: wrap; gap: 8px; }
 .tk-new .ed-btn { min-height: 44px; }
+/* ---------- bar numbers: tap to choose what loops (blue, so it isn't mistaken for the gold selection) ---------- */
+.score .bar-pick { cursor: pointer; outline: none; }
+.score .bar-strip { fill: transparent; stroke: none; }
+.score .bar-pill { fill: transparent; stroke: rgba(60, 84, 120, .45); stroke-width: 1; }
+.score .bar-pick text { font: 700 14px "Times New Roman", serif; fill: #3c5478; stroke: none; pointer-events: none; }
+.score .bar-pick.on .bar-pill { fill: #3c5478; stroke: #3c5478; }
+.score .bar-pick.on text { fill: #fff6e6; }
+.score .bar-pick:focus-visible .bar-pill { stroke: #7a1f2b; stroke-width: 2.5; }
+@media (hover: hover) { .score .bar-pick:hover .bar-pill { stroke: #3c5478; stroke-width: 2; } }
+.score .bar-shade { fill: none; stroke: none; pointer-events: none; }
+.score .bar-shade.on { fill: rgba(60, 84, 120, .13); }

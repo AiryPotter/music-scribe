@@ -20,7 +20,7 @@ import * as FX from './fixlog.js';
 import { createBugReporter } from './bugreport.js';
 import { CHORD_KINDS, chordId, chordLabel, chordShape, chordsInKey, parseChordId } from './chordbook.js';
 import { DEFAULT_TIME, TIMES, timeInfo, timeOf } from './time.js';
-import { JAM_SIZES, jamSizes, defaultJamSize, nextTop, loopNotes, splitRounds } from './jam.js';
+import { JAM_SIZES, nextTop, loopNotes, splitRounds } from './jam.js';
 
 // the last few errors, for bug reports (they stay on this device unless a report is shared)
 const recentErrors = [];
@@ -652,7 +652,6 @@ function requantize(t) {
 function layoutTake(t, { quiet = false } = {}) {
   stopPlayback();
   resumeFrom = null;
-  if (practice.loopAt && t.score && practice.loopAt.start >= (t.model?.measures.length ?? 1e9) * t.score.tempo.meter * SLOTS_PER_BEAT) practice.loopAt = null;
   if (!t.score.key) ensureKey(t);
   const { events, tempo } = t.score;
   const meter = tempo.meter;
@@ -891,7 +890,11 @@ function scheduleRender() {
     }
     const focusRef = ui.score.contains(document.activeElement) ? document.activeElement.dataset?.ref : null;
     if (take?.model && (!session || session.jam)) {
-      renderScore(ui.score, take.model);
+      const barFocus = ui.score.contains(document.activeElement) ? document.activeElement.dataset?.bar : null;
+      renderScore(ui.score, take.model, { barPicks: true });
+      paintBars();
+      syncPractice();
+      if (barFocus != null) ui.score.querySelector(`.bar-pick[data-bar="${barFocus}"]`)?.focus({ preventScroll: true });
     } else {
       setNameKey(0);
       const m = previewModel(notes, tracker?.cur || null);
@@ -1065,14 +1068,59 @@ setMore(store.get('edMore', '0') === '1');
 const practice = {
   speed: 100, // always starts at normal speed
   click: store.get('prClick', '0') === '1',
-  bars: [1, 2, 4].includes(Number(store.get('prBars', '1'))) ? Number(store.get('prBars', '1')) : 1,
   loop: false,
-  loopAt: null, // { start, end } in slots, chosen when Loop is turned on or Play is pressed
 };
-function loopRange(fromSlot) {
-  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
-  const start = Math.floor(fromSlot / barSlots) * barSlots;
-  return { start, end: start + practice.bars * barSlots, barSlots };
+// ---------- bars picked to loop: tap a bar's number; none picked = the whole manuscript ----------
+const barPick = { take: null, time: '', set: new Set() };
+function pickedBars() {
+  const time = take?.score ? timeOf(take.score.tempo) : '';
+  if (barPick.take !== take || barPick.time !== time) { barPick.take = take; barPick.time = time; barPick.set.clear(); }
+  const total = take?.model?.measures.length ?? 0;
+  for (const b of barPick.set) if (b >= total) barPick.set.delete(b);
+  return barPick.set;
+}
+/** First and last bar of the loop (counting from 0): everything from the first picked bar to the last. */
+function loopBars() {
+  const set = pickedBars();
+  if (set.size) return { a: Math.min(...set), b: Math.max(...set) };
+  return { a: 0, b: Math.max(1, songBars()) - 1 };
+}
+function loopSpan() {
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, { a, b } = loopBars();
+  return { start: a * barSlots, end: (b + 1) * barSlots };
+}
+/** Show the picked bars on the page (no need to draw it again). */
+function paintBars() {
+  const set = pickedBars(), { a, b } = take?.score ? loopBars() : { a: 0, b: -1 };
+  ui.score.querySelectorAll('.bar-pick').forEach((g) => {
+    const on = set.has(Number(g.dataset.bar));
+    g.classList.toggle('on', on);
+    g.setAttribute('aria-pressed', String(on));
+  });
+  ui.score.querySelectorAll('.bar-shade').forEach((r) => r.classList.toggle('on', set.size > 0 && Number(r.dataset.shade) >= a && Number(r.dataset.shade) <= b));
+}
+/** Change which bars are picked; whatever is playing carries on with the new loop. */
+function pickBars(fn) {
+  if (!take?.score || session || writing()) return;
+  const set = pickedBars();
+  moveJam(() => changePractice(() => {
+    const before = set.size;
+    fn(set);
+    if (set.size && !before) practice.loop = true; // picking the first bar turns Loop on
+  }));
+  paintBars();
+}
+/** The 1 / 2 / 4 / 8 buttons: that many bars, from the first picked bar or the selected note. */
+function pickSize(n) {
+  pickBars((set) => {
+    const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, total = take.model.measures.length;
+    const at = sel?.kind === 'ev' ? take.score.events[sel.idx].slot : sel?.kind === 'rest' ? sel.at : null;
+    let a = at !== null ? Math.floor(at / barSlots) : set.size ? Math.min(...set) : 0;
+    a = Math.max(0, Math.min(a, total - n));
+    set.clear();
+    if (n) for (let b = a; b < Math.min(total, a + n); b++) set.add(b);
+    if (n) practice.loop = true;
+  });
 }
 function syncPractice() {
   $('prSpeed').value = String(practice.speed);
@@ -1080,16 +1128,18 @@ function syncPractice() {
   $('prClick').checked = practice.click;
   $('prLoop').setAttribute('aria-pressed', String(practice.loop));
   $('prLoop').classList.toggle('on', practice.loop);
-  $('practice').querySelectorAll('[data-bars]').forEach((b) => b.classList.toggle('on', Number(b.dataset.bars) === practice.bars));
+  $('practice').querySelectorAll('[data-bars]').forEach((b) => {
+    const n = Number(b.dataset.bars), set = take?.score ? pickedBars() : new Set();
+    const on = n ? set.size > 0 && loopBars().b - loopBars().a + 1 === n : !set.size;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
   let hint = '';
-  if (practice.loop && practice.loopAt && take?.score) {
-    const bs = take.score.tempo.meter * SLOTS_PER_BEAT;
-    const a = practice.loopAt.start / bs + 1, b = practice.loopAt.end / bs;
-    hint = a === b ? `Looping bar ${a}` : `Looping bars ${a}–${b}`;
-  } else if (practice.loop) hint = 'Tap a note to choose where the loop starts';
+  const where = !take?.score ? '' : !pickedBars().size ? 'the whole manuscript' : loopBars().a === loopBars().b ? `bar ${loopBars().a + 1}` : `bars ${loopBars().a + 1}–${loopBars().b + 1}`;
+  if (practice.loop && where) hint = `Looping ${where}`;
   $('prHint').textContent = hint;
   const parts = [`${practice.speed}%`];
-  if (practice.loop) parts.push(`Loop ${practice.bars} bar${practice.bars === 1 ? '' : 's'}`);
+  if (practice.loop) parts.push(where ? `Loop ${where}` : 'Loop');
   if (practice.click) parts.push('Metronome');
   $('practiceToggle').querySelector('span').textContent = `Practice: ${parts.join(' · ')}`;
 }
@@ -1109,20 +1159,11 @@ $('prSpeed').addEventListener('change', () => changePractice(() => {}));
 $('prClick').addEventListener('change', () => changePractice(() => { practice.click = $('prClick').checked; store.set('prClick', practice.click ? '1' : '0'); }));
 $('prLoop').addEventListener('click', () => changePractice(() => {
   practice.loop = !practice.loop;
-  if (practice.loop && take?.score) {
-    const fromSlot = sel?.kind === 'ev' ? take.score.events[sel.idx].slot : sel?.kind === 'rest' ? sel.at
-      : player.playing ? player.position : practice.loopAt?.start ?? 0;
-    practice.loopAt = loopRange(fromSlot);
-  }
 }));
 $('practice').addEventListener('click', (e) => {
   const b = e.target.closest('[data-bars]');
   if (!b) return;
-  changePractice(() => {
-    practice.bars = Number(b.dataset.bars);
-    store.set('prBars', String(practice.bars));
-    if (practice.loopAt && take?.score) practice.loopAt = loopRange(practice.loopAt.start);
-  });
+  pickSize(Number(b.dataset.bars));
 });
 $('practiceToggle').addEventListener('click', () => {
   const open = $('practice').classList.toggle('open');
@@ -1192,15 +1233,15 @@ function togglePlay() {
   let from = resumeFrom ?? 0; // in slots
   if (sel?.kind === 'ev') from = events[sel.idx].slot;
   else if (sel?.kind === 'rest') from = sel.at;
-  if (practice.loop && (sel || !practice.loopAt)) { practice.loopAt = loopRange(from); syncPractice(); }
-  const loop = practice.loop && practice.loopAt ? { start: practice.loopAt.start, end: practice.loopAt.end } : null;
+  const loop = practice.loop && songBars() ? loopSpan() : null;
+  if (loop && !layers.some((L) => L.events.some((e) => e.slot >= loop.start && e.slot < loop.end))) { showToast('Those bars have no notes to play.'); return; }
   if (loop && !(from >= loop.start && from < loop.end)) from = loop.start;
   if (sel) closeEditor(); // (redraws, which also clears resumeFrom)
   if (exportSheet.isOpen) exportSheet.close();
   setAudioSession('playback');
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   wake(earCtx);
-  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, loop });
+  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, loop, fullLoop: !!loop });
   ui.play.textContent = '❚❚';
   ui.play.setAttribute('aria-label', 'Pause');
   ui.play.classList.add('on');
@@ -1528,12 +1569,12 @@ function jamLayers() {
 /** Keep the loop's size and place sensible for the song on the page. */
 function fitJam() {
   const bars = songBars();
-  if (jam.song !== take) { jam.song = take; jam.size = 0; jam.from = 1; jam.rounds = []; }
+  if (jam.song !== take) { jam.song = take; jam.rounds = []; }
   if (!bars) return 0;
-  if (!jamSizes(bars).includes(jam.size)) jam.size = defaultJamSize(bars);
-  jam.from = Math.max(1, Math.min(jam.from, Math.max(1, bars - jam.size + 1)));
-  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT;
-  jam.loop = { start: (jam.from - 1) * barSlots, end: (jam.from - 1 + jam.size) * barSlots };
+  const { a, b } = loopBars();
+  jam.from = a + 1;
+  jam.size = b - a + 1;
+  jam.loop = loopSpan();
   return bars;
 }
 function syncJam() {
@@ -1542,11 +1583,12 @@ function syncJam() {
   $('jamBar').hidden = !bars;
   if (!bars) return;
   const on = jam.player.playing && !jam.hearing;
-  const ok = jamSizes(bars);
-  $('jamSizes').innerHTML = JAM_SIZES.map((n) => `<button type="button" class="ed-btn seg${n === jam.size ? ' on' : ''}" data-size="${n}" aria-pressed="${n === jam.size}"${ok.includes(n) && !rec ? '' : ' disabled'}>${n}</button>`).join('') + `<span class="jam-label">bar${jam.size === 1 ? '' : 's'}</span>`;
+  const all = !pickedBars().size;
+  const onSize = (n) => (n ? !all && n === jam.size : all);
+  $('jamSizes').innerHTML = [0, ...JAM_SIZES].map((n) => `<button type="button" class="ed-btn seg${onSize(n) ? ' on' : ''}" data-size="${n}" aria-pressed="${onSize(n)}"${n <= take.model.measures.length && !rec ? '' : ' disabled'}>${n || 'All'}</button>`).join('') + `<span class="jam-label">bar${jam.size === 1 ? '' : 's'}</span>`;
   $('jamFrom').textContent = String(jam.from);
-  $('jamPrev').disabled = rec || jam.from <= 1;
-  $('jamNext').disabled = rec || jam.from + jam.size > bars;
+  $('jamPrev').disabled = rec || all || jam.from <= 1;
+  $('jamNext').disabled = rec || all || jam.from + jam.size > take.model.measures.length;
   $('jamPlay').textContent = on ? '■ Stop loop' : '▶ Start loop';
   $('jamPlay').hidden = rec;
   $('jamRec').textContent = rec ? '■ Stop and write it out' : '● Record';
@@ -1684,9 +1726,10 @@ function moveJam(fn) {
   if (on) startJam();
   syncJam();
 }
-$('jamSizes').addEventListener('click', (e) => { const b = e.target.closest('[data-size]'); if (b) moveJam(() => { jam.size = Number(b.dataset.size); }); });
-$('jamPrev').addEventListener('click', () => moveJam(() => { jam.from--; }));
-$('jamNext').addEventListener('click', () => moveJam(() => { jam.from++; }));
+$('jamSizes').addEventListener('click', (e) => { const b = e.target.closest('[data-size]'); if (b) pickSize(Number(b.dataset.size)); });
+const shiftBars = (d) => pickBars((set) => { const moved = [...set].map((b) => b + d); if (moved.some((b) => b < 0)) return; set.clear(); moved.forEach((b) => set.add(b)); });
+$('jamPrev').addEventListener('click', () => shiftBars(-1));
+$('jamNext').addEventListener('click', () => shiftBars(1));
 $('jamRounds').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -2034,6 +2077,23 @@ function cycleString(dir) {
   edit((s, x) => E.setString(s, x, next.stringIndex), { what: 'string' });
 }
 
+const toggleBar = (b) => pickBars((set) => { if (!set.delete(b)) set.add(b); });
+ui.score.addEventListener('click', (e) => {
+  const g = e.target.closest?.('[data-bar]');
+  if (g) toggleBar(Number(g.dataset.bar));
+});
+// keyboard: ← → move along the bar numbers, Enter or Space picks
+ui.score.addEventListener('keydown', (e) => {
+  const g = e.target.closest?.('[data-bar]');
+  if (!g || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Enter' || e.key === ' ') toggleBar(Number(g.dataset.bar));
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    const to = ui.score.querySelector(`.bar-pick[data-bar="${Number(g.dataset.bar) + (e.key === 'ArrowRight' ? 1 : -1)}"]`);
+    if (to) { g.setAttribute('tabindex', '-1'); to.setAttribute('tabindex', '0'); to.focus(); }
+  } else return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+});
 ui.score.addEventListener('click', (e) => {
   const r = e.target.closest?.('[data-ref]');
   if (!r || !take?.refs || session) return;

@@ -119,3 +119,6 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 
 ## Add a take as a layer (2026-11-24)
 - Third button on each library row. All-or-nothing when a multi-layer take doesn't fit; fret positions are kept only if tuning and capo match; a different time signature is mentioned in the message.
+
+## Bars picked to loop (2026-11-24)
+- A number above every bar on the page (never in exports) toggles it. Loop = first picked to last picked; none = whole manuscript. One choice drives Practice Loop and Jam; the 1/2/4/8 and All buttons change the same choice. Blue, so it can't be mistaken for the gold note selection. Picks aren't saved with the song; a new take or time signature clears them.

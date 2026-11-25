@@ -80,11 +80,13 @@ export class Player {
     this.seg = seg;
     this.slotDur = 60 / (bpm * speed) / SLOTS_PER_BEAT;
     this.cycleDur = (seg.end - seg.start) * this.slotDur;
-    const firstSlot = loop ? seg.start : fromSlot;
+    let firstSlot = loop ? Math.max(seg.start, Math.min(fromSlot, seg.end - 1)) : fromSlot;
+    let j0 = loop ? items.findIndex((x) => x.slot >= firstSlot) : 0; // a loop can be joined part-way through
+    if (j0 < 0) { j0 = 0; firstSlot = seg.start; }
     this.t0 = (at ?? ctx.currentTime + 0.12) - (firstSlot - seg.start) * this.slotDur; // audio time of seg.start, cycle 0
     this.lastSlot = firstSlot;
-    this.next = { k: 0, j: 0 };   // next item to schedule (cycle, index)
-    this.cursor = { k: 0, j: 0 }; // next item to highlight
+    this.next = { k: 0, j: j0 };   // next item to schedule (cycle, index)
+    this.cursor = { k: 0, j: j0 }; // next item to highlight
     this.shown = -1;
     this.playing = true;
     this.timer = setInterval(() => this.tick(), TICK_MS);

@@ -207,7 +207,8 @@
           <output id="prSpeedOut">100%</output>
         </label>
         <div class="pr-loop" role="group" aria-label="Loop">
-          <button id="prLoop" class="ed-btn seg" type="button" aria-pressed="false" title="Repeat the bar of the selected note">⟲ Loop</button>
+          <button id="prLoop" class="ed-btn seg" type="button" aria-pressed="false" title="Repeat the selected bars, or the whole manuscript if none are selected">⟲ Loop</button>
+          <button class="ed-btn seg" type="button" data-bars="0" aria-label="Loop the whole manuscript" title="Unselect every bar">All</button>
           <button class="ed-btn seg" type="button" data-bars="1" aria-label="Loop 1 bar">1</button>
           <button class="ed-btn seg" type="button" data-bars="2" aria-label="Loop 2 bars">2</button>
           <button class="ed-btn seg" type="button" data-bars="4" aria-label="Loop 4 bars">4</button>
@@ -370,7 +371,8 @@
           <li><b>Add a saved take as a layer:</b> in Thy Library, press the stacked-sheets button with a + beside a take. It's copied onto your manuscript as a new layer (up to 4); the saved take stays as it is.</li>
           <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together. While it is on, the page has a dashed gold border; <kbd>Esc</kbd> turns it off.</li>
           <li><b>Detail</b>: <i>Simple</i> for a clean, readable page; <i>Detailed</i> keeps every rest and 16th note.</li>
-          <li><b>Practice</b>: slow it down, loop a few bars, add a metronome to the playback.</li>
+          <li><b>Practice</b>: slow it down, loop it, add a metronome to the playback.</li>
+          <li><b>Choose what loops:</b> tap a bar's <b>number</b> to select it; tap again to unselect. The loop runs from the first selected bar to the last. With none selected (or <b>All</b>), the whole manuscript loops. Jam uses the same bars.</li>
           <li><b>Fixes</b> counts what you corrected. Save that log and share it to help Mozart improve.</li>
         </ul>
       </details>
@@ -383,7 +385,7 @@
           <li>The layer you're editing is <b>bold black</b>; the others are faint: sky blue, violet, arterial red, evergreen. <b>All</b> shows every layer bold; tap one to make it thin.</li>
           <li><b>🔊/🔇</b> mutes a layer; <b>Volume</b> balances them. Each layer sits a little left or right so you can tell them apart.</li>
           <li><b>Sounds like</b> picks the instrument a layer plays back with: ten sounds, a different one for each layer if you like. MIDI and MusicXML exports carry it too.</li>
-          <li><b>Jam along with this</b> loops 1, 2, 4 or 8 bars while you play freely. Tap <b>Record</b> and your part is written from the next time the loop comes round; then listen to each time round and <b>Keep</b> the best as a layer.</li>
+          <li><b>Jam along with this</b> loops the bars you select (or the whole manuscript) while you play freely. Tap <b>Record</b> and your part is written from the next time the loop comes round; then listen to each time round and <b>Keep</b> the best as a layer.</li>
           <li><b>+ 3rd / + 6th</b> copies the layer you're on a 3rd or a 6th higher, in the key: an instant harmony to try against the melody.</li>
           <li>Ideas: a <b>bass line</b> on the low strings (root notes on beat 1), <b>chords</b> strummed on the beat, or a simple <b>counter-melody</b> in the gaps.</li>
           <li><b>Export → MusicXML</b> (All layers) opens in MuseScore or Sibelius as a real multi-part score; <b>MIDI</b> gives a track per layer.</li>

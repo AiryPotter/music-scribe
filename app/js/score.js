@@ -42,8 +42,11 @@ function minMeasureWidth(m, withClef, withTime, keyW = 0) {
   return 40 + (withClef ? 46 + keyW : 0) + (withTime ? 26 : 0) + m.reduce((w, p) => w + (p.slots <= 2 ? 24 : 32) + (p.acc ? 8 : 0), 0);
 }
 
+const BAR_PICK = 28; // height of the strip of bar numbers
+
 /**
  * Draw the score into `el`. Returns layout info { rows, rowHeight, topPad, scale, pxWidth, pxHeight }.
+ * opts.barPicks: draw a tappable number above every bar (on the page only, never in exports).
  * opts (for exports): { width, scale, layout: 'both' | 'notation' | 'tab', colors: { ink, paper, chord } }
  */
 export function renderScore(el, model, opts = {}) {
@@ -102,6 +105,8 @@ export function renderScore(el, model, opts = {}) {
     const written = hi + 12; // guitar is written an octave up
     return showStaff ? Math.max(0, Math.ceil((written - 84) * 3.2) + (written > 84 ? 14 : 0)) : 0;
   });
+  if (opts.barPicks) rows.forEach((_, i) => { rowExtra[i] += BAR_PICK; }); // room for the bar numbers
+  const bars = []; // { i, x, w, y (number strip), y0, y1 }
   const rowStarts = [TOP_PAD];
   rows.forEach((_, i) => rowStarts.push(rowStarts[i] + rowExtra[i] + ROW_H));
   const pxHeight = Math.ceil((rowStarts[rows.length] + 10) * scale);
@@ -289,6 +294,7 @@ export function renderScore(el, model, opts = {}) {
         hits.push(hit);
         if (p.sel) bands.push(hit);
       });
+      if (opts.barPicks) bars.push({ i: cell.i, x, w, y: rowStarts[rowIdx], y0: y - 6, y1: y + ROW_H - 18 });
       x += w;
     });
   });
@@ -346,6 +352,19 @@ export function renderScore(el, model, opts = {}) {
     r.setAttribute('rx', 6);
     r.setAttribute('class', 'sel-band');
     svg.insertBefore(r, svg.firstChild);
+  }
+  for (const b of bars) {
+    const make = (tag, attrs) => { const n = document.createElementNS(SVG_NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
+    const shade = make('rect', { x: b.x, y: b.y, width: b.w, height: b.y1 - b.y, class: 'bar-shade' });
+    shade.dataset.shade = String(b.i);
+    svg.insertBefore(shade, svg.firstChild);
+    const g = make('g', { class: 'bar-pick', role: 'button', tabindex: b.i === 0 ? '0' : '-1', 'aria-pressed': 'false', 'aria-label': `Bar ${b.i + 1}: select for looping` });
+    g.dataset.bar = String(b.i);
+    const label = make('text', { x: b.x + 20, y: b.y + 17, 'text-anchor': 'middle' });
+    label.textContent = String(b.i + 1);
+    g.append(make('rect', { class: 'bar-strip', x: b.x, y: b.y - 2, width: b.w, height: BAR_PICK }),
+      make('rect', { class: 'bar-pill', x: b.x + 4, y: b.y + 2, width: 32, height: 21, rx: 10 }), label);
+    svg.appendChild(g);
   }
   // keyboard + screen readers: one labelled, focusable target per note (roving tabindex)
   const labelled = new Set();
