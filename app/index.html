@@ -181,6 +181,8 @@
           <input id="clickToggle" type="checkbox">
           <span>Metronome</span>
         </label>
+        <select id="beatSelect" class="beat-select" aria-label="What the metronome plays: a click or a drum beat"></select>
+        <label id="beatTip" class="click-toggle" title="On: full drums while recording. Off: the drums are thinned out while recording, so the microphone doesn't hear their thump as notes" hidden><input id="beatPhones" type="checkbox"><span>Headphones</span></label>
         <button id="tuneBtn" class="tune-btn" type="button" title="Tune your guitar before you play">Tune</button>
       </div>
     </section>
@@ -218,6 +220,11 @@
           <input id="prClick" type="checkbox">
           <span>Metronome</span>
         </label>
+        <select id="prBeat" class="beat-select" aria-label="What the metronome plays during playback and Jam"></select>
+        <span id="beatExtras" class="beat-extras" hidden>
+          <label class="click-toggle" title="A short drum fill every fourth bar"><input id="beatFills" type="checkbox"><span>Fills</span></label>
+          <label class="beat-vol"><span>Drums</span> <input id="beatVol" type="range" min="0" max="150" step="5" aria-label="Drum volume"></label>
+        </span>
         <span id="prHint" class="pr-hint"></span>
       </div>
       <div class="score-tools">
@@ -273,7 +280,7 @@
       </div>
       <div id="layerBar" class="layer-bar" hidden>
         <div id="layerChips" class="layer-chips" role="group" aria-label="Layers"></div>
-        <label class="layer-sound"><span id="layerSoundName">Sounds like</span> <select id="layerSound" aria-label="Instrument"></select></label>
+        <label class="layer-sound"><span id="layerSoundName">Sounds like</span> <select id="layerSound" aria-label="Instrument"></select><button id="soundBrowse" class="ed-btn" type="button" title="Search and hear every sound">🔎 Sounds</button></label>
         <div id="layerRow" class="layer-row" hidden>
           <input id="layerName" class="layer-name" type="text" maxlength="24" aria-label="Layer name" autocomplete="off">
           <label class="layer-vol"><span>Volume</span> <input id="layerVol" type="range" min="0" max="150" step="5" aria-label="Layer volume"></label>
@@ -382,6 +389,8 @@
           <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together. While it is on, the page has a dashed gold border; <kbd>Esc</kbd> turns it off.</li>
           <li><b>Detail</b>: <i>Simple</i> for a clean, readable page; <i>Detailed</i> keeps every rest and 16th note.</li>
           <li><b>Practice</b>: slow it down, loop it, add a metronome to the playback.</li>
+          <li><b>30 sounds:</b> choose one in <b>Sounds like</b>, or press <b>🔎</b> to search, hear each one and star your favorites (they go to the top).</li>
+          <li><b>Drum beats:</b> choose one beside <b>Metronome</b>. It plays while you record (after a one-bar count-in), in playback, loops and Jam, at your tempo and time signature. <b>Fills</b> and <b>Drums</b> volume are beside it. While recording, the drums are thinned out so speakers don't add wrong notes; wearing headphones? Tick <b>Headphones</b> for the full sound.</li>
           <li><b>Choose what loops:</b> tap a bar's <b>number</b> to select it; tap again to unselect. The loop runs from the first selected bar to the last. With none selected (or <b>All</b>), the whole manuscript loops. Jam uses the same bars.</li>
           <li><b>Fixes</b> counts what you corrected. Save that log and share it to help Mozart improve.</li>
         </ul>
@@ -545,6 +554,21 @@
       </div>
       <p id="tkEmpty" class="hint" hidden>No saved takes yet. Each take is saved here by itself once Mozart has written it out.</p>
       <ul id="tkList" class="tk-list"></ul>
+    </div>
+  </section>
+
+  <!-- Every sound: search, hear, favorites -->
+  <section id="soundSheet" class="editor sheet" hidden aria-label="Sounds">
+    <div class="ed-head">
+      <div class="ed-title">
+        <strong id="sdTitle">Choose a sound</strong>
+        <span>Tap a name to use it · 🔊 to hear it first</span>
+      </div>
+      <button id="sdClose" class="mini" type="button" aria-label="Close sounds">✕</button>
+    </div>
+    <div class="ed-body">
+      <input id="sdSearch" class="sd-search" type="search" placeholder="Search: guitar, bass, strings…" aria-label="Search sounds" autocomplete="off">
+      <div id="sdList"></div>
     </div>
   </section>
 

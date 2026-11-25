@@ -142,13 +142,18 @@ Each take in Thy Library has a button (stacked sheets with a +) that copies it o
 Tap a note or rest, then choose from **Add chord to bar …** at the top of the editor: it plays straight away in the layer's instrument and fills that bar (one strum) in the layer you're editing, with its name and a playable shape for your tuning and capo. It replaces notes that start in that bar; other layers and bars don't move. Choose another to swap it; each choice is one Undo. Chords in the song's key come first, then all 12 roots × major, minor, 7, maj7, m7, sus2, sus4, 5, dim, aug and add9.
 
 ## Instruments
-**Sounds like** (above the manuscript, and per layer in the wide-screen mixer) sets what plays the notes: Harpsichord (original), Acoustic guitar, Heavy guitar, Bass guitar, Grand piano, Electric piano, Organ, Synth lead, Dreamy strings or Marimba. Every layer can have its own. All ten are generated in the app (no recordings, nothing downloaded, works offline). It changes playback, Jam and tapped notes; MIDI, MusicXML and Guitar Pro exports carry the matching instrument. Saved with the song; older songs keep the original sound.
+**Sounds like** (above the manuscript, and per layer in the wide-screen mixer) sets what plays the notes: 30 sounds in seven groups (guitars, basses, keys, strings, brass & woodwind, synths & voices, mallets). **🔎 Sounds** opens a list with search, 🔊 to hear each one and ★ favorites, which move to the top. Every layer can have its own. All are generated in the app (no recordings, nothing downloaded, works offline). It changes playback, Jam and tapped notes; MIDI, MusicXML and Guitar Pro exports carry the matching instrument. Saved with the song; older songs keep the original sound.
 
 ## Downloads
 Untitled downloads are named **Thy Manuscript 2026-11-17 17.24** (your local date and time); give the take a title to use that instead.
 
 ## Tuner
 Tap **Tune** (under the Begin seal) before you play. Play one string at a time: the tuner finds the nearest string in your current tuning, shows the note, a needle from −50 to +50 cents, and says "Too low · tighten ↑", "Too high · loosen ↓" or "In tune ✓" (within ±5 cents). Each string gets a ✓ once it has stayed in tune for half a second. Tap a string to tune only that one (handy in a noisy room). With a capo set, it reminds you to tune with the capo off. It shows a note only once several readings agree, clears it when the sound stops, corrects octave mistakes, and asks which string you mean instead of advising a big turn. It only listens: nothing is recorded or kept.
+
+## Drum beats
+The drop-down beside **Metronome** (under Begin, and in the Practice row) chooses the click or one of 12 beats: basic rock, hard rock, pop, slow ballad, metal double kick, funk, hip-hop, reggae one-drop, blues shuffle, jazz swing, country train, bossa nova. Choosing one ticks Metronome and plays a taste. It plays during recording (after a one-bar count-in), playback, loops and Jam. **Fills** (every fourth bar) and **Drums** volume are in the Practice row. Beats are patterns of single drum hits generated in the app (no recordings), so they work at any speed. 4/4 and other even bars use the style's full pattern; other time signatures, including your own groups, get a simpler beat in the same style.
+
+Drums heard by the mic: **while recording they're thinned to the high end** unless **Headphones** is ticked. In the bench (guitar plus a simulated speaker), at ordinary level, takes with the thinned beats had 5-20 wrong notes (the click: 15; full rock, metal and train drums: 53-103). Very loud thinned drums still cost some notes; full drums through speakers cost far more. Drums are never written into the manuscript or exports.
 
 ## Recording with the click
 If the metronome plays through speakers, the mic hears it too. Music Scribe now knows exactly when every beat was, so:
@@ -164,7 +169,7 @@ Mozart works out the **key** from your notes (major or minor, e.g. "A minor", "B
 A **Practice** row appears under the manuscript header when there's music (on phones it folds into one "Practice" button):
 - **Speed** slider, 25–400% in 25% steps (200% = double time); always starts at 100%
 - **Loop**: tap a bar's number to select or unselect it (the first one turns Loop on); it repeats from the first selected bar to the last. **None selected, or All, loops the whole manuscript.** 1, 2 and 4 pick that many bars from the selected note. Jam uses the same bars
-- **Metronome**: a tick on every beat while playing back, accented on beat 1
+- **Metronome**: a tick on every beat while playing back, accented on beat 1, or a drum beat
 Changing any of these while music plays carries on from the same note. Metronome and the bar count are remembered.
 
 ## Mozart's mistakes (fix log)

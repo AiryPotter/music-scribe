@@ -4,6 +4,7 @@
 
 import { playSound, prepareSound } from './sounds.js';
 import { clickSound } from './metronome.js';
+import { drumBar, playDrum, prepareDrums, thinFilter } from './drums.js';
 
 const LOOKAHEAD = 0.25; // seconds of sound scheduled ahead of the clock
 const TICK_MS = 40;
@@ -22,10 +23,10 @@ export class Player {
    * layers: [{ events: [{ slot, len, notes:[{ midi }] }] sorted, active (the one the page follows),
    *   volume (0–1.5), pan (−1…1), sound (see sounds.js) }]  (a plain events array also works, as one layer)
    * bpm: the written tempo; fromSlot: where to start (16ths from the start of the song).
-   * opts: { speed (0.25–4), click (bool), meter, pulse (slots between ticks), loop: { start, end } in slots, or null,
+   * opts: { speed (0.25–4), click (bool), drums ({ id, time, fills, volume }: a beat instead of ticks), meter, pulse (slots between ticks), loop: { start, end } in slots, or null,
    *   at: audio time to start (default: right away) }
    */
-  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, pulse = SLOTS_PER_BEAT, accents = [], loop = null, at = null, fullLoop = false } = {}) {
+  start(ctx, layers, bpm, fromSlot = 0, { speed = 1, click = false, meter = 4, pulse = SLOTS_PER_BEAT, accents = [], drums = null, loop = null, at = null, fullLoop = false } = {}) {
     this.stop(false);
     if (Array.isArray(layers) && layers.length && !layers[0]?.events) layers = [{ events: layers, active: true }];
     layers = (layers || []).filter((L) => L.events?.length);
@@ -68,9 +69,14 @@ export class Player {
     });
     if (click) {
       for (let bar = Math.floor(seg.start / barSlots) * barSlots; bar < seg.end; bar += barSlots) {
-        for (let s = bar; s < bar + barSlots; s += pulse) if (s >= seg.start && s < seg.end) items.push({ slot: s, tick: true, accent: s === bar ? 1 : accents.includes((s - bar) / pulse) ? 0.5 : 0 });
+        if (drums) {
+          for (const h of drumBar(drums.id, drums.time, bar / barSlots, drums.fills)) if (bar + h.slot >= seg.start && bar + h.slot < seg.end) items.push({ slot: bar + h.slot, tick: true, drum: h });
+        } else for (let s = bar; s < bar + barSlots; s += pulse) if (s >= seg.start && s < seg.end) items.push({ slot: s, tick: true, accent: s === bar ? 1 : accents.includes((s - bar) / pulse) ? 0.5 : 0 });
       }
     }
+    this.drumVol = drums?.volume ?? 1;
+    this.drumOut = null;
+    if (click && drums) prepareDrums(ctx, drums.id);
     items.sort((a, b) => a.slot - b.slot || (a.tick ? -1 : 1));
     if (!items.some((x) => x.ev)) { try { this.out.disconnect(); } catch { /* */ } return; }
 
@@ -105,6 +111,9 @@ export class Player {
     return true;
   }
 
+  /** From now on play the drums without their low end (a recording is starting, through speakers). */
+  thinDrums() { if (this.playing) this.drumOut = thinFilter(this.ctx, this.out); }
+
   tickSound(t, accent) { clickSound(this.ctx, t, accent, this.out); }
 
   tick() {
@@ -113,7 +122,8 @@ export class Player {
     while (!this.nextDone && this.timeOf(this.next) < now + LOOKAHEAD) {
       const it = this.items[this.next.j];
       const at = Math.max(now, this.timeOf(this.next));
-      if (it.tick) this.tickSound(at, it.accent);
+      if (it.drum) playDrum(this.ctx, it.drum.drum, at, it.drum.vel, this.drumOut || this.out, this.drumVol);
+      else if (it.tick) this.tickSound(at, it.accent);
       else playSound(this.ctx, it.sound, it.ev.notes.map((n) => n.midi), { at, dest: it.dest || this.out, dur: it.ev.len * this.slotDur });
       if (!this.advance(this.next)) this.nextDone = true;
     }

@@ -126,3 +126,7 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 ## Any time signature + remembered note length (2026-11-24)
 - time.js reads any "n/d" or "a+b+c/d" (d = 2, 4, 8, 16). "Type my own…" opens a small form beside Time. Groups different from the usual ones are part of the name (3+3+2/8).
 - Notes added into rests keep the last length added or chosen.
+
+## Drum beats and 30 sounds (2026-11-24)
+- drums.js: synthesized hits + patterns; one choice shared by recording, playback and Jam. Recording thins the drums (high-pass) unless Headphones is ticked; measured in dev/bench.js (`click: { drums: 'rock', thin: true }`).
+- sounds.js: 20 more generated sounds (the first ten unchanged), grouped lists with favorites on top, and a Sounds sheet (search, hear, star).

@@ -141,7 +141,7 @@ export async function render(song, opts = {}) {
   const picker = new FretPicker(strings, 0);
   const voices = new Map();
   // optional: a metronome on every beat leaking in through a speaker (distorted, cabinet thump, echoes)
-  let clickTimes = null;
+  let clickTimes = null, drumHits = null;
   if (opts.click) {
     const { clickSound, setClickStyle } = await import('../js/metronome.js');
     setClickStyle(opts.click.style || 'tone');
@@ -159,7 +159,15 @@ export async function render(song, opts = {}) {
       sh.connect(d).connect(dg).connect(oc.destination);
     }
     clickTimes = [];
-    for (let k = 0; k * p < dur - 1; k++) { const t = lead + k * p; clickTimes.push(t); clickSound(oc, t, k % song.meter === 0, pre); }
+    if (opts.click.drums) {
+      const D = await import('../js/drums.js');
+      const time = `${song.meter}/4`;
+      const hits = D.drumTimes({ id: opts.click.drums, time, fills: true }, song.bpm, lead, dur - 1);
+      drumHits = hits;
+      const into = opts.click.thin ? D.thinFilter(oc, pre) : pre;
+      for (let b = 0; lead + b * song.meter * p < dur - 1; b++) for (const h of D.drumBar(opts.click.drums, time, b, true)) D.playDrum(oc, h.drum, lead + b * song.meter * p + h.slot * p / 4, h.vel, into, 1);
+      clickTimes = D.PITCHED.flatMap((d) => hits[d] || []).filter((t) => t < dur - 1).sort((a, b) => a - b);
+    } else for (let k = 0; k * p < dur - 1; k++) { const t = lead + k * p; clickTimes.push(t); clickSound(oc, t, k % song.meter === 0, pre); }
     setClickStyle('tone');
   }
   const realRandom = Math.random;
@@ -183,7 +191,7 @@ export async function render(song, opts = {}) {
   const samples = buf.getChannelData(0).slice();
   let lp = 0; // room noise: soft hiss
   for (let i = 0; i < samples.length; i++) { lp = lp * 0.9 + (rand() * 2 - 1) * 0.1; samples[i] += lp * noise * 3; }
-  return { samples, sampleRate, truth, lead, clickTimes };
+  return { samples, sampleRate, truth, lead, clickTimes, drumHits };
 }
 
 // ---------- scoring ----------
@@ -228,13 +236,16 @@ export async function runSong(song, opts = {}) {
   if (!rawCache.has(key)) {
     const r0 = await render(song, opts);
     const raw = await transcribe(r0.samples, r0.sampleRate, () => {}, { raw: true });
-    rawCache.set(key, { raw, truth: r0.truth, lead: r0.lead, clickTimes: r0.clickTimes });
+    rawCache.set(key, { raw, truth: r0.truth, lead: r0.lead, clickTimes: r0.clickTimes, drumHits: r0.drumHits });
   }
   const r = rawCache.get(key);
   const bp = await import(BP_URL);
   const useClicks = r.clickTimes && opts.clickAware !== false;
   let notes = makeNotes(bp, r.raw, { ...opts.params, ...(useClicks ? { clickTimes: r.clickTimes } : {}) });
-  if (useClicks) notes = removeClickNotes(notes, r.clickTimes);
+  if (useClicks) {
+    if (r.drumHits) for (const d of ['kick', 'snare', 'rim', 'tomH', 'tomM', 'tomL']) { if (r.drumHits[d]?.length) notes = removeClickNotes(notes, r.drumHits[d], opts.drumLeak || {}); }
+    else notes = removeClickNotes(notes, r.clickTimes);
+  }
   const floor = Math.min(38, song.lowest ?? 40);
   notes = notes.filter((n) => n.midi >= floor);
   const n = scoreNotes(r.truth, notes);

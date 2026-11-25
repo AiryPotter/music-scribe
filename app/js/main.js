@@ -7,11 +7,12 @@ import { renderScore, previewModel } from './score.js';
 import { Mozart } from './mozart.js';
 import { Recorder } from './recorder.js';
 import { Metronome } from './metronome.js';
+import { BEATS, PITCHED, beatInfo, drumTimes, playDrum, drumBar, prepareDrums } from './drums.js';
 import { transcribe, preloadTranscriber, cancelTranscription, startStream } from './transcribe.js';
 import { onsetEvents, estimateTempo, phaseFor, detectMeter, quantize, layoutBars, SLOTS_PER_BEAT } from './rhythm.js';
 import { nameChord } from './chords.js';
 import * as E from './edits.js';
-import { DEFAULT_SOUND, SOUNDS, playSound, prepareSound, soundInfo } from './sounds.js';
+import { DEFAULT_SOUND, SOUNDS, SOUND_GROUPS, playSound, prepareSound, soundInfo } from './sounds.js';
 import { Player } from './player.js';
 import { Tuner } from './tuner.js';
 import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
@@ -141,6 +142,73 @@ $('ownTime').addEventListener('submit', (e) => {
 $('ownTimeCancel').addEventListener('click', () => { closeOwnTime(); ui.meterSel.focus(); });
 $('ownTime').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeOwnTime(); ui.meterSel.focus(); } });
 ui.click.addEventListener('change', () => store.set('click', ui.click.checked ? '1' : '0'));
+
+// ---------- drum beats: what the metronome plays (recording, playback and Jam share the choice) ----------
+const beat = {
+  id: beatInfo(store.get('beat', ''))?.id || '', // '' = the click
+  fills: store.get('beatFills', '1') === '1',
+  phones: store.get('beatPhones', '0') === '1', // wearing headphones: record with the full drums
+  volume: Math.max(0, Math.min(150, Number(store.get('beatVol', '100')) || 0)) / 100,
+};
+/** The chosen beat for a time signature, or null for the click. */
+function drumsFor(time) { return beat.id ? { id: beat.id, time, fills: beat.fills, volume: beat.volume } : null; }
+for (const sel of [$('beatSelect'), $('prBeat')]) {
+  sel.add(new Option('Click', ''));
+  for (const name of [...new Set(BEATS.map((b) => b.group))]) {
+    const g = document.createElement('optgroup');
+    g.label = name;
+    for (const b of BEATS) if (b.group === name) g.append(new Option(b.name, b.id));
+    sel.append(g);
+  }
+}
+function syncBeat() {
+  $('beatSelect').value = $('prBeat').value = beat.id;
+  $('beatFills').checked = beat.fills;
+  $('beatVol').value = String(Math.round(beat.volume * 100));
+  $('beatExtras').hidden = !beat.id;
+  $('beatPhones').checked = beat.phones;
+  $('beatTip').hidden = !beat.id;
+}
+/** Hear two bars (the second with its fill) when a beat is chosen and nothing else is playing. */
+let beatTaste = null;
+function tasteBeat() {
+  if (beatTaste) { try { beatTaste.disconnect(); } catch { /* gone */ } beatTaste = null; }
+  if (!beat.id || session || player.playing || jam.player.playing) return;
+  setAudioSession('playback');
+  try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
+  wake(earCtx);
+  prepareDrums(earCtx, beat.id);
+  const out = beatTaste = earCtx.createGain();
+  out.connect(earCtx.destination);
+  const T = timeInfo(ui.meterSel.value), slot = 15 / clampBpm(ui.bpm.value), t0 = earCtx.currentTime + 0.12;
+  const bars = T.barSlots * slot > 4 ? 1 : 2;
+  for (let b = 0; b < bars; b++) for (const h of drumBar(beat.id, T.id, b === 1 ? 3 : 0, beat.fills)) playDrum(earCtx, h.drum, t0 + (b * T.barSlots + h.slot) * slot, h.vel, out, beat.volume);
+}
+function setBeat(fn, { taste = true } = {}) {
+  const jamming = jam.player.playing && !jam.hearing && !session;
+  changePractice(() => {
+    fn();
+    store.set('beat', beat.id);
+    store.set('beatFills', beat.fills ? '1' : '0');
+    store.set('beatVol', String(Math.round(beat.volume * 100)));
+    syncBeat();
+  });
+  if (jamming) { stopJam(); startJam(); syncJam(); }
+  if (taste) tasteBeat();
+}
+// choosing a beat ticks the Metronome box beside it
+$('beatSelect').addEventListener('change', () => {
+  if ($('beatSelect').value && !ui.click.checked) { ui.click.checked = true; store.set('click', '1'); }
+  setBeat(() => { beat.id = $('beatSelect').value; });
+});
+$('prBeat').addEventListener('change', () => setBeat(() => {
+  beat.id = $('prBeat').value;
+  if (beat.id && !practice.click) { practice.click = true; store.set('prClick', '1'); }
+}));
+$('beatPhones').addEventListener('change', () => { beat.phones = $('beatPhones').checked; store.set('beatPhones', beat.phones ? '1' : '0'); });
+$('beatFills').addEventListener('change', () => setBeat(() => { beat.fills = $('beatFills').checked; }));
+$('beatVol').addEventListener('change', () => setBeat(() => { beat.volume = Number($('beatVol').value) / 100; }));
+syncBeat();
 
 function gateFromSens(s) { return 0.05 * Math.pow(0.04, s / 100); }
 function levelToPct(level) {
@@ -374,6 +442,7 @@ async function start({ jamming = false } = {}) {
   if (!$('tunerSheet').hidden) closeTuner();
   cancelTranscription(); // a new take replaces one still being written out
   flushSave();
+  closeSounds();
   if (!$('takesSheet').hidden) closeTakes();
   endProgress();
   hideToast();
@@ -453,21 +522,23 @@ async function start({ jamming = false } = {}) {
       jam.holding = false;
       session.jam = { cancelled: true };
     } else {
+      if (practice.click && beat.id && !beat.phones) p.thinDrums();
       const top = nextTop(p.t0, p.cycleDur, earCtx.currentTime) + offset;
       countInEnd = top;
       clickLag = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.005;
-      session.jam = { song: jamSong, loop: { ...jam.loop }, bpm, meter, time: timeSig.id, top, slotDur: 60 / bpm / SLOTS_PER_BEAT, layers: jamLayers().map((L) => ({ events: L.events })), out: earCtx.outputLatency || 0 };
+      session.jam = { song: jamSong, loop: { ...jam.loop }, bpm, meter, time: timeSig.id, drums: practice.click ? drumsFor(timeSig.id) : null, top, slotDur: 60 / bpm / SLOTS_PER_BEAT, layers: jamLayers().map((L) => ({ events: L.events })), out: earCtx.outputLatency || 0 };
     }
   } else if (ui.click.checked || song) { // a new layer always gets a one-bar count-in, so it lines up with the others
     const countOnly = !ui.click.checked;
     metro = new Metronome(ctx, {
       bpm: tickBpm, meter: ticks, leak: session.leak || null, beats: countOnly ? ticks : 0, accents: timeSig.accents,
+      drums: countOnly || !drumsFor(timeSig.id) ? null : { ...drumsFor(timeSig.id), pulse: timeSig.pulse, thin: !beat.phones },
       onBeat: (b) => { if (b < ticks) mozart.say(String(b + 1)); else if (b === ticks) mozart.say(''); },
     });
     clickLag = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.005;
     const t0 = metro.start(ctx.currentTime + 0.2);
     countInEnd = t0 + meter * (60 / bpm);
-    clickInfo = { bpm, meter, tickBpm, ticks, downbeat: countInEnd, first: t0, countOnly };
+    clickInfo = { bpm, meter, tickBpm, ticks, downbeat: countInEnd, first: t0, countOnly, drums: countOnly ? null : drumsFor(timeSig.id) };
     if (countOnly) setTimeout(() => { if (metro && session) mozart.say(''); }, (countInEnd - ctx.currentTime) * 1000 + 300);
   }
   session.clickInfo = clickInfo;
@@ -606,8 +677,23 @@ function setStatus(text, isBusy = false) {
 /** When every click reached the mic, in seconds from the start of the recording. */
 function beatTimes(click, untilSecs) {
   const p = 60 / (click.tickBpm || click.bpm), out = [];
+  if (click.drums) { // the count-in ticks, then the drums that could be taken for notes
+    for (let c = click.first ?? click.downbeat; c < click.downbeat - p / 2; c += p) out.push(c);
+    const hits = drumTimes(click.drums, click.bpm, click.downbeat, untilSecs + p);
+    return [...out, ...PITCHED.flatMap((d) => hits[d] || [])].sort((a, b) => a - b);
+  }
   for (let c = click.first ?? click.downbeat; c <= untilSecs + p; c += p) out.push(c);
   return out;
+}
+
+/** Take out notes that are really the metronome (or each drum of the beat) heard by the microphone. */
+function removeBeat(list, click, times, untilSecs) {
+  if (!click.drums) return removeClickNotes(list, times);
+  return removeDrums(list, drumTimes(click.drums, click.bpm, click.downbeat, untilSecs));
+}
+function removeDrums(list, hits) {
+  for (const d of PITCHED) if (hits[d]?.length) list = removeClickNotes(list, hits[d]);
+  return list;
 }
 
 async function analyzeTake() {
@@ -646,7 +732,8 @@ async function analyzeTake() {
   if (t.click) {
     t.notes = t.notes.filter((n) => n.start > t.click.downbeat - 0.12);
     const before = t.notes.length;
-    t.notes = removeClickNotes(t.notes, t.clickTimes || beatTimes(t.click, Math.max(0, ...t.notes.map((n) => n.end)) + 1));
+    const until = Math.max(0, ...t.notes.map((n) => n.end)) + 1;
+    t.notes = removeBeat(t.notes, t.click, t.clickTimes || beatTimes(t.click, until), until);
     t.clickNotesRemoved = before - t.notes.length;
   }
   t.events = onsetEvents(t.notes);
@@ -1191,7 +1278,7 @@ function syncPractice() {
   $('prHint').textContent = hint;
   const parts = [`${practice.speed}%`];
   if (practice.loop) parts.push(where ? `Loop ${where}` : 'Loop');
-  if (practice.click) parts.push('Metronome');
+  if (practice.click) parts.push(beat.id ? beatInfo(beat.id).name : 'Metronome');
   $('practiceToggle').querySelector('span').textContent = `Practice: ${parts.join(' · ')}`;
 }
 /** Change a practice setting; if music is playing, carry on from the same note with the new setting. */
@@ -1292,7 +1379,7 @@ function togglePlay() {
   setAudioSession('playback');
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   wake(earCtx);
-  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, accents: timeInfo(timeOf(take.score.tempo)).accents, loop, fullLoop: !!loop });
+  player.start(earCtx, layers, take.score.tempo.bpm, from, { speed: practice.speed / 100, click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, accents: timeInfo(timeOf(take.score.tempo)).accents, drums: drumsFor(timeOf(take.score.tempo)), loop, fullLoop: !!loop });
   ui.play.textContent = '❚❚';
   ui.play.setAttribute('aria-label', 'Pause');
   ui.play.classList.add('on');
@@ -1501,7 +1588,7 @@ function syncLayerUi() {
     chips.appendChild(h);
   }
   $('layerRow').hidden = !layered;
-  $('layerSound').value = take.layers[take.active].sound;
+  fillLayerSound();
   $('layerSoundName').textContent = layered ? `${take.layers[take.active].name} sounds like` : 'Sounds like';
   if (layered) {
     const L = take.layers[take.active];
@@ -1530,22 +1617,85 @@ $('layerName').addEventListener('change', () => {
 $('layerName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('layerName').blur(); });
 $('layerVol').addEventListener('change', () => changeLayer(take?.active, (L) => { L.vol = Number($('layerVol').value) / 100; }, { replay: true }));
 $('layerDelete').addEventListener('click', deleteLayer);
-for (const s of SOUNDS) $('layerSound').add(new Option(s.name, s.id));
+// ---------- choosing a sound: grouped lists with your favorites on top, and a sheet to search and hear them ----------
+let favSounds = new Set();
+try { favSounds = new Set(JSON.parse(store.get('favSounds', '[]')).filter((id) => SOUNDS.some((s) => s.id === id))); } catch { /* none */ }
+function soundOptions(current) {
+  const opt = (s, sel) => `<option value="${s.id}"${sel ? ' selected' : ''}>${escHtml(s.name)}</option>`;
+  const favs = SOUNDS.filter((s) => favSounds.has(s.id));
+  return (favs.length ? `<optgroup label="★ Favorites">${favs.map((s) => opt(s, s.id === current)).join('')}</optgroup>` : '')
+    + SOUND_GROUPS.map((g) => `<optgroup label="${escHtml(g)}">${SOUNDS.filter((s) => s.group === g).map((s) => opt(s, s.id === current && !favSounds.has(s.id))).join('')}</optgroup>`).join('');
+}
+function fillLayerSound() { $('layerSound').innerHTML = soundOptions(take?.layers?.[take.active]?.sound); }
+let soundFor = -1; // the layer the sheet is choosing for
+function renderSounds() {
+  const q = $('sdSearch').value.trim().toLowerCase(), now = take?.layers?.[soundFor]?.sound;
+  const found = SOUNDS.filter((s) => !q || `${s.name} ${s.group}`.toLowerCase().includes(q));
+  const row = (s) => `<li class="sd-item${s.id === now ? ' current' : ''}"><button type="button" class="tk-open" data-sound="${s.id}"><strong>${escHtml(s.name)}</strong>${s.id === now ? '<small>this layer’s sound</small>' : ''}</button>`
+    + `<button type="button" class="mini" data-taste="${s.id}" aria-label="Hear ${escHtml(s.name)}" title="Hear it">🔊</button>`
+    + `<button type="button" class="mini" data-fav="${s.id}" aria-pressed="${favSounds.has(s.id)}" aria-label="${favSounds.has(s.id) ? 'Remove' : 'Add'} ${escHtml(s.name)} ${favSounds.has(s.id) ? 'from' : 'to'} favorites" title="Favorite">${favSounds.has(s.id) ? '★' : '☆'}</button></li>`;
+  const block = (name, list) => (list.length ? `<h3>${escHtml(name)}</h3><ul class="tk-list">${list.map(row).join('')}</ul>` : '');
+  $('sdList').innerHTML = found.length
+    ? block('★ Favorites', found.filter((s) => favSounds.has(s.id))) + SOUND_GROUPS.map((g) => block(g, found.filter((s) => s.group === g))).join('')
+    : '<p class="hint">No sound has that name.</p>';
+}
+function openSounds(k) {
+  if (!take?.layers?.[k] || session) return;
+  closeEditor();
+  closeGuide();
+  if (exportSheet.isOpen) exportSheet.close();
+  closeTakes();
+  soundFor = k;
+  $('sdTitle').textContent = take.layers.length > 1 ? `A sound for ${take.layers[k].name}` : 'Choose a sound';
+  $('sdSearch').value = '';
+  renderSounds();
+  $('soundSheet').hidden = false;
+  document.body.classList.add('editing');
+  $('sdSearch').focus({ preventScroll: true });
+}
+function closeSounds() { if ($('soundSheet').hidden) return; $('soundSheet').hidden = true; document.body.classList.remove('editing'); }
+/** Play a few notes of the layer (or an E chord) with a sound, without choosing it. */
+let tasteOut = null;
+function tasteSound(id, k) {
+  if (session) return;
+  setAudioSession('playback');
+  try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
+  wake(earCtx);
+  if (tasteOut) { try { tasteOut.disconnect(); } catch { /* gone */ } }
+  tasteOut = earCtx.createGain();
+  tasteOut.connect(earCtx.destination);
+  const events = take?.layers?.[k] ? (k === take.active ? take.score.events : take.layers[k].events) : [];
+  const taste = events.length ? events.slice(0, 4).map((e) => e.notes.map((n) => n.midi)) : [[52], [56], [59], [64]];
+  prepareSound(earCtx, id, taste.flat());
+  taste.forEach((m, i) => playSound(earCtx, id, m, { at: earCtx.currentTime + 0.12 + i * 0.36, dur: 0.34, dest: tasteOut }));
+}
+$('sdSearch').addEventListener('input', renderSounds);
+$('sdClose').addEventListener('click', closeSounds);
+$('soundSheet').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSounds(); $('soundBrowse').focus(); } });
+$('sdList').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const { sound, taste, fav } = b.dataset;
+  if (taste) tasteSound(taste, soundFor);
+  else if (fav) {
+    if (!favSounds.delete(fav)) favSounds.add(fav);
+    store.set('favSounds', JSON.stringify([...favSounds]));
+    renderSounds();
+    fillLayerSound();
+    renderMix();
+    $('sdList').querySelector(`[data-fav="${fav}"]`)?.focus();
+  } else if (sound) { setSound(soundFor, sound); renderSounds(); }
+});
+$('soundBrowse').addEventListener('click', () => openSounds(take?.active ?? 0));
 /** Give a layer another instrument, and let it be heard straight away. */
 function setSound(k, id) {
   if (!take?.layers?.[k] || session) return;
   store.set('sound', id); // new layers and takes start with the last one chosen
   const wasPlaying = player.playing || jam.player.playing;
-  const events = k === take.active ? take.score.events : take.layers[k].events;
   changeLayer(k, (L) => { L.sound = id; }, { replay: true });
   if (wasPlaying) return;
   scheduleSave();
-  setAudioSession('playback');
-  try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
-  wake(earCtx);
-  const taste = events.length ? events.slice(0, 4).map((e) => e.notes.map((n) => n.midi)) : [[52], [56], [59], [64]];
-  prepareSound(earCtx, id, taste.flat());
-  taste.forEach((m, i) => playSound(earCtx, id, m, { at: earCtx.currentTime + 0.12 + i * 0.36, dur: 0.34 }));
+  tasteSound(id, k);
 }
 $('layerSound').addEventListener('change', () => setSound(take?.active, $('layerSound').value));
 allView = store.get('allView', '0') === '1';
@@ -1589,7 +1739,7 @@ async function analyzeLayer(od, rec, click, latency, live) {
   let got = source === 'accurate' ? result : live;
   const lowest = Math.min(38, Math.min(...tuningStrings()) + guitar.capo);
   got = got.filter((n) => n.midi >= lowest && n.start > downbeat - 0.12);
-  if (click && !click.countOnly) got = removeClickNotes(got, clickTimes);
+  if (click && !click.countOnly) got = removeBeat(got, { ...click, downbeat }, clickTimes, recSecs);
   const before = got.length;
   got = removePlaybackNotes(got, od.played.map((x) => ({ midi: x.midi, t: rel(x.t) + latency, dur: x.dur })));
   const leaked = before - got.length;
@@ -1668,7 +1818,7 @@ function startJam(extra = null) {
   try { earCtx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch { return false; }
   wake(earCtx);
   jam.hearing = extra;
-  jam.player.start(earCtx, layers, take.score.tempo.bpm, jam.loop.start, { click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, accents: timeInfo(timeOf(take.score.tempo)).accents, loop: jam.loop, fullLoop: true });
+  jam.player.start(earCtx, layers, take.score.tempo.bpm, jam.loop.start, { click: practice.click, meter: take.score.tempo.meter, pulse: timeInfo(timeOf(take.score.tempo)).pulse, accents: timeInfo(timeOf(take.score.tempo)).accents, drums: drumsFor(timeOf(take.score.tempo)), loop: jam.loop, fullLoop: true });
   clearInterval(jam.timer);
   jam.timer = setInterval(showJamPos, 150);
   return true;
@@ -1732,6 +1882,7 @@ async function analyzeJam(j, rec, stream, latency, live) {
   if (take !== song) return;
   const lowest = Math.min(38, Math.min(...tuningStrings()) + guitar.capo);
   let got = (result?.length ? result : live).filter((n) => n.midi >= lowest);
+  if (j.drums) got = removeDrums(got, drumTimes(j.drums, j.bpm, top, until, { fromBar: j.loop.start / (timeInfo(j.time).barSlots), bars: (j.loop.end - j.loop.start) / timeInfo(j.time).barSlots }));
   got = removePlaybackNotes(got, loopNotes(j.layers, j.loop, j.slotDur, top, until, top)); // the loop heard through speakers
   const rounds = splitRounds(got, { top, until, loop: j.loop, tempo: { bpm: j.bpm, meter: j.meter, time: j.time }, simple: ui.detailSel.value !== 'detailed', openStrings: tuningStrings().map((m) => m + guitar.capo) });
   layoutTake(song, { quiet: true });
@@ -1832,7 +1983,7 @@ function renderMix() {
     + `<i class="lc-dot" aria-hidden="true"></i>`
     + `<button type="button" class="mix-name" data-mix-layer="${k}" title="${k === take.active ? 'The layer you are editing' : 'Edit this layer'}">${escHtml(L.name)}${k === take.active ? ' · editing' : ''}</button>`
     + `<button type="button" class="mini" data-mix-mute="${k}" aria-pressed="${!!L.mute}" aria-label="${L.mute ? 'Unmute' : 'Mute'} ${escHtml(L.name)}">${L.mute ? '🔇' : '🔊'}</button>`
-    + `<select class="mix-sound" data-mix-sound="${k}" aria-label="${escHtml(L.name)} instrument">${SOUNDS.map((x) => `<option value="${x.id}"${x.id === L.sound ? ' selected' : ''}>${x.name}</option>`).join('')}</select>`
+    + `<select class="mix-sound" data-mix-sound="${k}" aria-label="${escHtml(L.name)} instrument">${soundOptions(L.sound)}</select><button type="button" class="mini" data-mix-browse="${k}" aria-label="Search sounds for ${escHtml(L.name)}" title="Search and hear every sound">🔎</button>`
     + `<input type="range" min="0" max="150" step="5" value="${Math.round((L.vol ?? 1) * 100)}" data-mix-vol="${k}" aria-label="${escHtml(L.name)} volume">`
     + '</div>').join('')
     + (Ls.length === 1 ? '<p class="mix-empty">Add a backup part with + Layer, or try + 3rd / + 6th for an instant harmony.</p>' : '');
@@ -1840,7 +1991,8 @@ function renderMix() {
 $('mixList').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b || !take?.score || session) return;
-  if (b.dataset.mixLayer !== undefined) useLayer(Number(b.dataset.mixLayer));
+  if (b.dataset.mixBrowse !== undefined) openSounds(Number(b.dataset.mixBrowse));
+  else if (b.dataset.mixLayer !== undefined) useLayer(Number(b.dataset.mixLayer));
   else if (b.dataset.mixMute !== undefined) changeLayer(Number(b.dataset.mixMute), (L) => { L.mute = !L.mute; }, { replay: true });
 });
 $('mixList').addEventListener('change', (e) => {
@@ -1865,7 +2017,7 @@ const bugs = createBugReporter({
       ['Screen', `${screen.width}×${screen.height}, window ${innerWidth}×${innerHeight}, zoom ${Math.round((Number(document.documentElement.style.zoom) || 1) * 100)}%${matchMedia('(display-mode: standalone)').matches || navigator.standalone ? ', home-screen app' : ''}`],
       ['Take', t ? `${t.title || 'Untitled'} · ${t.source || ''} · ${Math.round(t.score.tempo.bpm)} bpm · ${timeOf(t.score.tempo)} · ${keyName(t.score.key)} · ${t.model?.measures.length ?? 0} bars` : 'none open'],
       ['Layers', L?.length ? L.map((x, k) => `${x.name}${k === t.active ? '*' : ''} (${x.events.length} notes${x.mute ? ', muted' : ''})`).join(', ') : '1'],
-      ['Settings', `Detail ${ui.detailSel.value}, Metronome ${ui.click.checked ? 'on' : 'off'}, tuning ${guitar.id}, capo ${guitar.capo}, mic ${ui.mic.value === '__demo__' ? 'demo' : 'device'}`],
+      ['Settings', `Detail ${ui.detailSel.value}, Metronome ${ui.click.checked ? beat.id || 'click' : 'off'}, tuning ${guitar.id}, capo ${guitar.capo}, mic ${ui.mic.value === '__demo__' ? 'demo' : 'device'}`],
       ['Recent errors', recentErrors.length ? recentErrors.join(' | ') : 'none'],
     ];
   },
@@ -1940,6 +2092,7 @@ E.LENGTHS.forEach(([slots, name]) => {
 
 function select(ref) {
   if (!ref || !take?.score || session) return;
+  closeSounds();
   if (exportSheet.isOpen) exportSheet.close();
   if (!$('takesSheet').hidden) closeTakes();
   if (ref.kind === 'ev') {
@@ -2809,6 +2962,7 @@ async function renderTakes() {
 let takesCache = [];
 function openTakes() {
   if (session) return;
+  closeSounds();
   if (docked()) { renderTakes().then(() => $('takesSheet').scrollIntoView({ block: 'nearest', behavior: 'smooth' })); return; }
   if (!$('fixesSheet').hidden) closeFixes();
   flushSave();

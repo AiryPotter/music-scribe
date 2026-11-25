@@ -1236,7 +1236,7 @@ button.layer-chip:disabled { opacity: .45; cursor: default; }
 .layer-sound select { flex: 0 1 260px; width: auto; }
 .layer-sound { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 15px; font-weight: 700; }
 .layer-sound select, .mix-sound { font: inherit; font-size: 15px; min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); min-width: 0; }
-.mix-sound { grid-column: 1 / -1; width: 100%; }
+.mix-sound { grid-column: 1 / -2; width: 100%; }
 
 /* Select is on: the whole page says so */
 body.selecting .score-card .page { outline: 3px dashed var(--gold); outline-offset: 3px; }
@@ -1263,3 +1263,19 @@ body.selecting .score-card .page { outline: 3px dashed var(--gold); outline-offs
 .own-time { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .own-time input { font: inherit; font-size: 16px; width: 110px; min-height: 40px; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); }
 .own-time select { width: auto; min-height: 40px; }
+/* ---------- drum beats ---------- */
+.beat-select { font: inherit; font-size: 15px; min-height: 38px; max-width: 170px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); }
+.beat-extras { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.beat-vol { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.beat-vol input { width: 90px; }
+/* ---------- sounds ---------- */
+.sd-search { font: inherit; font-size: 16px; width: 100%; min-height: 44px; padding: 4px 12px; border-radius: 10px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); box-sizing: border-box; }
+#sdList h3 { font-family: var(--font-display); font-size: 17px; margin: 12px 0 2px; color: var(--gold); }
+.sd-item { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.sd-item.current .tk-open { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); }
+.sd-item .mini { min-width: 44px; height: 44px; font-size: 17px; }
+.layer-sound { flex-wrap: wrap; }
+.layer-sound select { flex: 1 1 130px; max-width: 260px; }
+.layer-sound .ed-btn { white-space: nowrap; }
+.sd-item [data-fav][aria-pressed="false"] { opacity: .4; }
+.sd-item [data-fav][aria-pressed="true"] { color: var(--gold); border-color: var(--gold); }
