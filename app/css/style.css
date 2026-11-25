@@ -494,7 +494,7 @@ input[type="range"] { width: 100%; accent-color: var(--burgundy); min-height: 28
 .score { width: 100%; min-height: 200px; }
 .score svg { display: block; }
 .score .hit { fill: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.score .hit:hover { fill: rgba(184, 137, 43, .08); }
+.score .hit:hover { fill: transparent; }
 .score .sel-band { fill: rgba(184, 137, 43, .22); stroke: rgba(184, 137, 43, .55); stroke-width: 1; }
 
 /* undo / redo / clear */
@@ -909,7 +909,7 @@ html[data-edition="ios"] .edition { display: inline-block; }
 
 /* ---------- audit fixes: keyboard focus, wrapping messages, 44px phone buttons ---------- */
 .score .hit:focus { outline: none; }
-.score .hit:focus-visible { fill: rgba(122, 31, 43, .10); stroke: #7a1f2b; stroke-width: 2; }
+.score .hit:focus-visible { fill: transparent; stroke: #7a1f2b; stroke-width: 2; }
 button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .toast { white-space: normal; max-width: calc(100vw - 24px); width: max-content; border-radius: 22px; line-height: 1.3; }
 @media (max-width: 480px) {
@@ -1050,8 +1050,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* hover shows which note a click will pick (PC) */
 @media (hover: hover) {
-  .score .hit:hover { fill: rgba(184, 137, 43, .16); stroke: rgba(184, 137, 43, .55); stroke-width: 1; }
-  body.selecting .score .hit:hover { fill: rgba(122, 31, 43, .12); stroke: rgba(122, 31, 43, .6); }
+  /* hovering only outlines (dashed, blue-grey); gold fill always means selected */
+  .score .hit:hover { fill: transparent; stroke: rgba(60, 84, 120, .75); stroke-width: 1.2; stroke-dasharray: 4 3; }
+  body.selecting .score .hit:hover { stroke: rgba(122, 31, 43, .8); }
 }
 body.selecting .score .hit { cursor: copy; }
 
@@ -1236,3 +1237,10 @@ button.layer-chip:disabled { opacity: .45; cursor: default; }
 .layer-sound { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 15px; font-weight: 700; }
 .layer-sound select, .mix-sound { font: inherit; font-size: 15px; min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); min-width: 0; }
 .mix-sound { grid-column: 1 / -1; width: 100%; }
+
+/* Select is on: the whole page says so */
+body.selecting .score-card .page { outline: 3px dashed var(--gold); outline-offset: 3px; }
+/* ---------- chord menu ---------- */
+.ed-chordmenu { border-top: 0; }
+.ed-chordmenu label { font-size: 15px; font-weight: 700; }
+.ed-chordmenu select { font: inherit; font-size: 16px; min-height: 40px; flex: 1 1 130px; min-width: 0; padding: 0 8px; border-radius: 8px; border: 1px solid var(--card-edge); background: var(--card); color: var(--text); }

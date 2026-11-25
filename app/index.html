@@ -364,8 +364,9 @@
           <li><kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd>: previous / next note. <kbd>Delete</kbd>: remove it (the rest slides up). <kbd>Space</kbd>: play / pause. <kbd>Ctrl</kbd>+<kbd>Z</kbd>: undo.</li>
           <li><b>+ Bar</b>, <b>Duplicate bar</b> and <b>Delete bar</b> (under the manuscript) work on the bar you've tapped a note or rest in, in every layer. Pick notes in several bars to duplicate or delete just those bars. With nothing tapped, + Bar adds one at the end.</li>
           <li><b>On a PC:</b> <kbd>Ctrl</kbd>+click adds a note to the selection, <kbd>Shift</kbd>+click selects everything in between, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+click picks whole bars. Then <kbd>Ctrl</kbd>+<kbd>C</kbd> copy, <kbd>Ctrl</kbd>+<kbd>X</kbd> cut, <kbd>Ctrl</kbd>+<kbd>V</kbd> paste, <kbd>Ctrl</kbd>+<kbd>D</kbd> delete, <kbd>Ctrl</kbd>+<kbd>A</kbd> select all, <kbd>Esc</kbd> let go. Notes paste into the rest you tap, or straight after the note you tap; bars paste as new bars.</li>
+          <li><b>Chords:</b> tap a note or rest and choose from <b>Add chord to bar …</b>. You hear it, and it fills that bar in the layer you're editing, with its name and a playable shape. Choose another to swap it. Chords that fit your key come first.</li>
           <li><b>Tap a rest</b> to add a note there, <b>Remove rest</b> (the notes after it slide up), or <b>Hold the note before</b> through it.</li>
-          <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together.</li>
+          <li><b>Select</b> (under the manuscript) picks several notes at once to move or remove together. While it is on, the page has a dashed gold border; <kbd>Esc</kbd> turns it off.</li>
           <li><b>Detail</b>: <i>Simple</i> for a clean, readable page; <i>Detailed</i> keeps every rest and 16th note.</li>
           <li><b>Practice</b>: slow it down, loop a few bars, add a metronome to the playback.</li>
           <li><b>Fixes</b> counts what you corrected. Save that log and share it to help Mozart improve.</li>
@@ -432,6 +433,11 @@
       <button id="edClose" class="mini" type="button" aria-label="Close editor">✕</button>
     </div>
 
+    <div class="ed-row ed-chordmenu">
+      <label for="edBarChord" id="edBarChordWhere">Add chord</label>
+      <select id="edBarChord"></select>
+      <button id="edBarChordPlay" class="ed-btn" type="button" aria-label="Hear the chord" title="Hear the chord">🔊</button>
+    </div>
     <div id="edNoteTools" class="ed-body">
       <div id="edChips" class="ed-chips" role="group" aria-label="Notes in this chord"></div>
       <div class="ed-row">

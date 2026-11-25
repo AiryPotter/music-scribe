@@ -109,3 +109,7 @@ The only thing Music Scribe keeps is the written music (Thy Manuscript). The rec
 - Guide (sections: Quick start, room setup, fixing the manuscript, layers & quartet, tuning & capo): pinned left at ≥1440 px; a bottom sheet from a header "Guide" button below that.
 - Right column at ≥1440 px: Layers & mix card, the note editor (moved into the column), Thy Library (always open). Side width clamp(280px, (100vw − 980px)/2 − 28px, 440px); the main column shrinks to fit between.
 - First-visit tour (5 steps, gold ring on each target), stored as seen; replay from the Guide. Skipped in ?demo.
+
+## Chord menu + one highlight (2026-11-24)
+- "Add chord to bar N" drop-down at the top of the note editor (notes and rests): in-key chords first, then 12 roots × 11 types (chordbook.js). Fills the tapped bar in the active layer only, plays it, stays selected; replay button; one Undo per choice. Root is always the lowest note; muted strings only at the edges; at most 4 fingers and 4 frets.
+- Highlight causes: the Select tool left on, and hover / keyboard focus using nearly the same fill as "selected". Now gold fill = selected only; hover = dashed blue-grey outline; focus = outline; Select on = dashed gold page border, Esc turns it off.

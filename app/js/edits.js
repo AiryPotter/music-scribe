@@ -167,6 +167,18 @@ export function pasteNotes(events, at, clip) {
   events.sort((x, y) => x.slot - y.slot);
   return added;
 }
+/** One chord filling a…b, in place of whatever started there (a note held in from before stops at a). Returns its index. */
+export function setBarChord(events, a, b, notes, name) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.slot >= a && e.slot < b) events.splice(i, 1);
+    else if (e.slot < a && e.slot + e.len > a) e.len = a - e.slot;
+  }
+  let idx = events.findIndex((e) => e.slot >= b);
+  if (idx < 0) idx = events.length;
+  events.splice(idx, 0, { slot: a, len: b - a, notes: notes.map((n) => ({ ...n })), chord: name });
+  return idx;
+}
 /** Take a silence out: later notes slide up. Returns false if nothing comes after it. */
 export function removeRest(events, at, len) {
   const later = events.filter((e) => e.slot >= at + len);

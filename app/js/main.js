@@ -18,6 +18,7 @@ import { saveTake, listTakes, deleteTake, newTakeId } from './takes.js';
 import { removeClickNotes, removePlaybackNotes } from './notes-post.js';
 import * as FX from './fixlog.js';
 import { createBugReporter } from './bugreport.js';
+import { CHORD_KINDS, chordId, chordLabel, chordShape, chordsInKey, parseChordId } from './chordbook.js';
 import { DEFAULT_TIME, TIMES, timeInfo, timeOf } from './time.js';
 import { JAM_SIZES, jamSizes, defaultJamSize, nextTop, loopNotes, splitRounds } from './jam.js';
 
@@ -1920,11 +1921,60 @@ function refreshEditor() {
     ui.edWhat.textContent = 'Rest';
     ui.edWhere.textContent = `${whereLabel(sel.at)} · ${lenName(sel.len)} of silence`;
   }
+  syncChordMenu();
   const i = currentRefIndex();
   ui.edPrev.disabled = i <= 0;
   ui.edNext.disabled = i < 0 || i >= take.refs.length - 1;
   requestAnimationFrame(() => document.body.style.setProperty('--tray-h', `${ui.ed.offsetHeight}px`));
 }
+
+// ---------- the chord menu: hear a chord and write it into the bar ----------
+let chordMenuKey = '';
+/** The bar that was tapped (where the note or rest starts). */
+function chordBar() {
+  if (!sel || !take?.score) return -1;
+  const at = sel.kind === 'ev' ? take.score.events[sel.idx]?.slot : sel.at;
+  return at >= 0 ? Math.floor(at / (take.score.tempo.meter * SLOTS_PER_BEAT)) : -1;
+}
+function syncChordMenu() {
+  const menu = $('edBarChord'), key = take.score.key || { fifths: 0, mode: 'major' }, id = `${key.fifths}:${key.mode}`;
+  if (id !== chordMenuKey) { // (names follow the key: B♭ or A♯)
+    chordMenuKey = id;
+    const option = (r, k) => `<option value="${chordId(r, k.s)}">${escHtml(chordLabel(r, k.s, key.fifths))}${k.s === '5' ? ' (power)' : ''}</option>`;
+    menu.innerHTML = '<option value="">Choose a chord…</option>'
+      + `<optgroup label="In ${escHtml(keyName(key))}">${chordsInKey(key).map((c) => option(c.root, CHORD_KINDS.find((k) => k.s === c.kind))).join('')}</optgroup>`
+      + Array.from({ length: 12 }, (_, r) => `<optgroup label="${escHtml(chordLabel(r, '', key.fifths))}">${CHORD_KINDS.map((k) => option(r, k)).join('')}</optgroup>`).join('');
+  }
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, bar = chordBar();
+  const here = bar >= 0 ? take.score.events.find((e) => e.slot === bar * barSlots && e.len >= barSlots && e.chord) : null;
+  const same = here ? [...menu.options].find((o) => o.value && chordLabel(...o.value.split(':').map((x, k) => (k ? x : Number(x))), key.fifths) === here.chord) : null;
+  menu.value = same ? same.value : '';
+  $('edBarChordWhere').textContent = `Add chord to bar ${Math.max(0, bar) + 1}`;
+  $('edBarChordPlay').disabled = !same;
+}
+/** Write a chord into the tapped bar of the layer being edited, and play it. */
+function putChord(id) {
+  const c = parseChordId(id), bar = chordBar();
+  if (!c || bar < 0 || !take?.score || session || writing()) return;
+  const shape = chordShape(c.root, c.kind, tuningStrings(), guitar.capo);
+  if (!shape) { showToast('There’s no playable shape for that chord in this tuning.'); return; }
+  const barSlots = take.score.tempo.meter * SLOTS_PER_BEAT, name = chordLabel(c.root, c.kind, take.score.key?.fifths ?? 0);
+  pushHistory();
+  const idx = E.setBarChord(take.score.events, bar * barSlots, (bar + 1) * barSlots, shape, name);
+  take.edited = true;
+  // the chord stays selected, so another one can be tried straight away
+  picked.clear();
+  anchor = idx;
+  sel = { kind: 'ev', idx, focus: take.score.events[idx].notes.length - 1 };
+  layoutTake(take);
+  refreshTools();
+  audition(shape.map((n) => n.midi), 1.8);
+}
+$('edBarChord').addEventListener('change', () => putChord($('edBarChord').value));
+$('edBarChordPlay').addEventListener('click', () => {
+  const c = parseChordId($('edBarChord').value), shape = c && chordShape(c.root, c.kind, tuningStrings(), guitar.capo);
+  if (shape) audition(shape.map((n) => n.midi), 1.8);
+});
 
 function cycleString(dir) {
   if (sel?.kind !== 'ev') return;
@@ -2140,7 +2190,8 @@ function refreshTools() {
   document.body.classList.toggle('selecting', selectMode);
   tool.setAttribute('aria-pressed', String(selectMode));
   tool.classList.toggle('on', selectMode);
-  tool.textContent = selectMode ? (picked.size ? `Select · ${picked.size}` : 'Select · tap notes') : 'Select';
+  tool.textContent = selectMode ? (picked.size ? `Select is on · ${picked.size}` : 'Select is on · tap notes') : 'Select';
+  tool.title = selectMode ? 'Each tap adds or removes a note. Press again (or Esc) to turn this off' : 'Pick several notes: each tap adds or removes one';
   const rm = $('removeTool');
   const onRest = sel?.kind === 'rest' && !picked.size;
   rm.disabled = (!n && !onRest) || !!session;
@@ -2353,6 +2404,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (mod && !typing && !e.shiftKey && !e.altKey && 'acdvx'.includes(e.key.toLowerCase()) && e.key.length === 1 && clipKey(e.key.toLowerCase())) { e.preventDefault(); return; }
   if (e.key === ' ' && !typing && !mod && e.target.tagName !== 'BUTTON' && !exportSheet.isOpen && $('takesSheet').hidden && $('fixesSheet').hidden && !ui.play.disabled) { e.preventDefault(); togglePlay(); return; }
+  if (e.key === 'Escape' && selectMode && !sel && !typing) { setSelectMode(false); e.preventDefault(); return; }
   if (!sel || typing || mod || e.altKey) return;
   if (e.key === 'Enter' && (e.target.tagName === 'BUTTON' || sel.kind !== 'rest')) return;
   const up = e.shiftKey ? 'semi+' : 'step+', down = e.shiftKey ? 'semi-' : 'step-';
